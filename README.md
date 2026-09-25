@@ -35,13 +35,8 @@ Documents/Timberborn/Mods/TimberbornAI/
 Copy [`mod/manifest.json`](mod/manifest.json) and the built `TimberbornAI.dll`
 there.
 
-**`manifest.json`'s exact field names are an unverified best guess** — I don't
-have Timberborn installed to check the real schema against. Before relying on
-it: open the in-game Mods menu, look at any existing installed mod's
-`manifest.json` for the actual field names/casing the loader expects, and fix
-[`mod/manifest.json`](mod/manifest.json) to match. If the in-game Mods list
-shows the mod but with a version-compatibility warning or blank fields, that's
-this file, not the DLL.
+`manifest.json`'s schema is confirmed against a real installed mod
+(`Name`, `Version`, `Id`, `MinimumGameVersion`, `Description`, `RequiredMods`).
 
 The DLL itself doesn't depend on the loader's entrypoint interface — it uses
 Unity's own `RuntimeInitializeOnLoadMethod`, which fires automatically once
