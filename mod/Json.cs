@@ -14,12 +14,12 @@ namespace TimberbornAI
                 switch (c)
                 {
                     case '"':  sb.Append("\\\""); break;
-                    case '\': sb.Append("\\\\"); break;
-                    case '\n': sb.Append("\n");  break;
-                    case '\r': sb.Append("\r");  break;
-                    case '\t': sb.Append("\t");  break;
+                    case '\\': sb.Append("\\\\"); break;
+                    case '\n': sb.Append("\\n");  break;
+                    case '\r': sb.Append("\\r");  break;
+                    case '\t': sb.Append("\\t");  break;
                     default:
-                        if (c < 0x20) sb.Append("\u").Append(((int)c).ToString("x4"));
+                        if (c < 0x20) sb.Append("\\u").Append(((int)c).ToString("x4"));
                         else sb.Append(c);
                         break;
                 }
@@ -44,7 +44,7 @@ namespace TimberbornAI
                 var sb = new StringBuilder();
                 for (i++; i < json.Length && json[i] != '"'; i++)
                 {
-                    if (json[i] == '\' && i + 1 < json.Length) i++;
+                    if (json[i] == '\\' && i + 1 < json.Length) i++;
                     sb.Append(json[i]);
                 }
                 return sb.ToString();
