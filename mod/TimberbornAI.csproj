@@ -47,7 +47,7 @@
   <!-- If this repo's working tree IS your Timberborn local-mods folder
        (Documents/Timberborn/Mods/TimberbornAI/, clone target for the repo
        root), this drops manifest.json and the built DLL directly into that
-       root after every build -- no manual copy step, `git pull` + build is
+       root after every build: no manual copy step, `git pull` + build is
        enough. Harmless no-op if you build from a separate dev checkout;
        just delete this target in that case. -->
   <Target Name="CopyToModRoot" AfterTargets="Build">
