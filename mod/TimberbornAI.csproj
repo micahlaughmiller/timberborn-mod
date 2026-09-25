@@ -11,15 +11,13 @@
   </PropertyGroup>
 
   <!-- Point this at your install, e.g.
-       D:\SteamLibrary\steamapps\common\Timberborn\Timberborn_Data\Managed -->
+       D:\SteamLibrary\steamapps\common\Timberborn\Timberborn_Data\Managed
+       Update 6+ ships its own mod loader, so no BepInEx/Harmony packages
+       are referenced here — this project only needs the game's own
+       assemblies to compile against. -->
   <PropertyGroup>
     <GameManaged Condition="'$(GameManaged)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed</GameManaged>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="BepInEx.Core" Version="5.*" />
-    <PackageReference Include="HarmonyX" Version="2.*" />
-  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="UnityEngine">

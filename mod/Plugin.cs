@@ -4,12 +4,29 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
-using BepInEx;
-using HarmonyLib;
 using UnityEngine;
 
 namespace TimberbornAI
 {
+    /// <summary>
+    /// Bootstraps the plugin without depending on any mod-loader-specific
+    /// entrypoint interface. Update 6+'s native loader just needs to get this
+    /// assembly into the game process (per manifest.json); once that's true,
+    /// Unity itself calls this method automatically after the first scene
+    /// loads. This avoids hard-coding a native-loader entrypoint contract
+    /// this repo can't verify without the game installed.
+    /// </summary>
+    public static class Bootstrap
+    {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void Install()
+        {
+            var go = new GameObject("TimberbornAI");
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            go.AddComponent<Plugin>();
+        }
+    }
+
     /// <summary>
     /// Hosts a small local HTTP API inside the game process so an external
     /// agent can read world state and enqueue commands.
@@ -18,8 +35,7 @@ namespace TimberbornAI
     /// Unity/game access MUST happen on the main thread. Requests therefore
     /// enqueue work and block on a handle until Update() drains the queue.
     /// </summary>
-    [BepInPlugin("solutions.eo.timberborn.ai", "Timberborn AI Director", "0.1.0")]
-    public class Plugin : BaseUnityPlugin
+    public class Plugin : MonoBehaviour
     {
         public const int Port = 8787;
 
@@ -37,8 +53,6 @@ namespace TimberbornAI
 
         private void Awake()
         {
-            new Harmony("solutions.eo.timberborn.ai").PatchAll();
-
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
             _listener.Start();
@@ -46,7 +60,7 @@ namespace TimberbornAI
             _listenerThread = new Thread(ListenLoop) { IsBackground = true };
             _listenerThread.Start();
 
-            Logger.LogInfo($"Timberborn AI Director listening on http://127.0.0.1:{Port}/");
+            Debug.Log($"[TimberbornAI] listening on http://127.0.0.1:{Port}/");
         }
 
         private void OnDestroy()

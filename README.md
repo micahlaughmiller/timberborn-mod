@@ -16,13 +16,37 @@ issues structured commands, which is what makes the run legible on video.
 
 ## Build
 
-Needs the .NET SDK and a Timberborn install.
+Needs the .NET SDK and a Timberborn install. Update 6+ ships its own mod
+loader, so this doesn't use BepInEx — the project only references the game's
+own assemblies.
 
 ```bash
 dotnet build mod/TimberbornAI.csproj -c Release -p:GameManaged="D:\SteamLibrary\steamapps\common\Timberborn\Timberborn_Data\Managed"
 ```
 
-Copy `TimberbornAI.dll` into `Timberborn/BepInEx/plugins/`.
+Install into the native mod folder, normally `Documents/Timberborn/Mods/`:
+
+```
+Documents/Timberborn/Mods/TimberbornAI/
+    manifest.json
+    TimberbornAI.dll
+```
+
+Copy [`mod/manifest.json`](mod/manifest.json) and the built `TimberbornAI.dll`
+there.
+
+**`manifest.json`'s exact field names are an unverified best guess** — I don't
+have Timberborn installed to check the real schema against. Before relying on
+it: open the in-game Mods menu, look at any existing installed mod's
+`manifest.json` for the actual field names/casing the loader expects, and fix
+[`mod/manifest.json`](mod/manifest.json) to match. If the in-game Mods list
+shows the mod but with a version-compatibility warning or blank fields, that's
+this file, not the DLL.
+
+The DLL itself doesn't depend on the loader's entrypoint interface — it uses
+Unity's own `RuntimeInitializeOnLoadMethod`, which fires automatically once
+the assembly is loaded into the process, so it should work under the native
+loader without further changes to `Plugin.cs`.
 
 ## First run: resolve the game bindings
 

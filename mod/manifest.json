@@ -1,0 +1,8 @@
+{
+  "Id": "solutions.eo.timberborn.ai",
+  "DisplayName": "Timberborn AI Director",
+  "Version": "0.1.0",
+  "Author": "Micah Laughmiller",
+  "Description": "Exposes world state/commands over local HTTP and shows an on-screen caption of an external agent's reasoning.",
+  "TimberbornVersion": "*"
+}
