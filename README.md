@@ -24,16 +24,27 @@ own assemblies.
 dotnet build mod/TimberbornAI.csproj -c Release -p:GameManaged="D:\SteamLibrary\steamapps\common\Timberborn\Timberborn_Data\Managed"
 ```
 
-Install into the native mod folder, normally `Documents/Timberborn/Mods/`:
+Install into the native mod folder. **This is your real Documents folder, not
+necessarily `%USERPROFILE%\Documents`** — if OneDrive has redirected Documents
+(check `%USERPROFILE%\OneDrive\...\Documents`), the game reads from the
+redirected location and silently ignores anything dropped in the unredirected
+one. Confirmed on the game PC:
 
 ```
-Documents/Timberborn/Mods/TimberbornAI/
+C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI\
     manifest.json
     TimberbornAI.dll
 ```
 
-Copy [`mod/manifest.json`](mod/manifest.json) and the built `TimberbornAI.dll`
-there.
+```bash
+mkdir "C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI"
+copy mod\manifest.json "C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI\"
+copy mod\bin\Release\netstandard2.1\TimberbornAI.dll "C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI\"
+```
+
+If the in-game Mods menu doesn't show the mod after a relaunch, check
+`%USERPROFILE%\AppData\LocalLow\Mechanistry\Timberborn\Player.log` for what
+folder it actually scanned before assuming the manifest is wrong.
 
 `manifest.json`'s schema is confirmed against a real installed mod
 (`Name`, `Version`, `Id`, `MinimumGameVersion`, `Description`, `RequiredMods`).
