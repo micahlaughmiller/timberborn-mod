@@ -32,6 +32,10 @@
       <HintPath>$(GameManaged)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- RuntimeInitializeOnLoadMethod pulls in PreserveAttribute, which this
          build ships in its own assembly rather than UnityEngine.CoreModule. -->
     <Reference Include="Unity.Scripting" Condition="Exists('$(GameManaged)\Unity.Scripting.dll')">
