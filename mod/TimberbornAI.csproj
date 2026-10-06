@@ -47,18 +47,15 @@
     </Reference>
   </ItemGroup>
 
-  <!-- If this repo's working tree IS your Timberborn local-mods folder
-       (Documents/Timberborn/Mods/TimberbornAI/, clone target for the repo
-       root), this drops manifest.json and the built DLL directly into that
-       root after every build: no manual copy step, `git pull` + build is
-       enough. Harmless no-op if you build from a separate dev checkout;
-       just delete this target in that case. -->
-  <Target Name="CopyToModRoot" AfterTargets="Build">
-    <ItemGroup>
-      <ModRootFiles Include="$(MSBuildProjectDirectory)\manifest.json" />
-      <ModRootFiles Include="$(TargetPath)" />
-    </ItemGroup>
-    <Copy SourceFiles="@(ModRootFiles)" DestinationFolder="$(MSBuildProjectDirectory)\.." SkipUnchangedFiles="true" />
+  <!-- Deploy step. Pass -p:ModInstallDir="<path to Documents/Timberborn/Mods/TimberbornAI>"
+       and every build copies exactly manifest.json and the DLL there. Keep the git
+       clone OUTSIDE the game's Mods folder: the game scans mod subfolders, and a
+       clone brings .git, bin and obj with it (slow, especially inside OneDrive).
+       With ModInstallDir unset this target does nothing. -->
+  <Target Name="DeployMod" AfterTargets="Build" Condition="'$(ModInstallDir)' != ''">
+    <MakeDir Directories="$(ModInstallDir)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\manifest.json;$(TargetPath)" DestinationFolder="$(ModInstallDir)" />
+    <Message Importance="high" Text="Deployed manifest.json and TimberbornAI.dll to $(ModInstallDir)" />
   </Target>
 
 </Project>

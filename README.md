@@ -20,32 +20,25 @@ Needs the .NET SDK and a Timberborn install. Update 6+ ships its own mod
 loader, so this doesn't use BepInEx — the project only references the game's
 own assemblies.
 
-**Recommended: clone this repo directly into your local mods folder** so
-`git pull` + `dotnet build` is the entire update loop, with no manual copy
-step. This is your real Documents folder, **not necessarily
-`%USERPROFILE%\Documents`** — if OneDrive has redirected Documents (check
-`%USERPROFILE%\OneDrive\...\Documents`), the game reads from the redirected
-location and silently ignores anything dropped in the unredirected one.
-Confirmed working path on the game PC:
+**Keep the git clone outside the game's Mods folder** and deploy only the two
+files the game needs. The game scans mod subfolders, and a clone drags `.git`,
+`bin` and `obj` into that scan (slow, especially inside a OneDrive-synced
+Documents folder). Your real Documents folder may be OneDrive-redirected, so
+use the path the game actually reads. Confirmed on the game PC:
 
 ```
 C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI\
 ```
 
 ```bash
-git clone https://github.com/micahlaughmiller/timberborn-mod.git "C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI"
-cd "C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI"
-dotnet build mod/TimberbornAI.csproj -c Release -p:GameManaged="C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed"
+cd /d "C:\Users\micah\Documents\business\mods\timberborn-mod"
+git pull
+dotnet build mod/TimberbornAI.csproj -c Release -p:GameManaged="C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed" -p:ModInstallDir="C:\Users\micah\OneDrive\Micah's Stuff\Documents\Timberborn\Mods\TimberbornAI"
 ```
 
-`mod/TimberbornAI.csproj` has a post-build step (`CopyToModRoot`) that copies
-`manifest.json` and the built DLL up into the repo root automatically —
-since the repo root *is* the mod folder, the game sees the update the moment
-the build finishes. No manual `copy` commands needed with this layout.
-
-(If you'd rather build from a separate dev checkout and copy into the mods
-folder by hand instead, that still works — just delete the `CopyToModRoot`
-target in the csproj, or ignore it and copy manually as before.)
+The build's `DeployMod` step copies `manifest.json` and `TimberbornAI.dll` into
+`ModInstallDir`, and nothing else. Quit the game before building, since it
+holds the DLL open.
 
 If the in-game Mods menu doesn't show the mod after a relaunch, check
 `%USERPROFILE%\AppData\LocalLow\Mechanistry\Timberborn\Player.log` for what
