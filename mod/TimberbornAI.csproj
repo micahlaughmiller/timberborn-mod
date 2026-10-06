@@ -25,6 +25,8 @@
     <GameReference Include="$(GameManaged)\Timberborn.*.dll" />
     <GameReference Include="$(GameManaged)\Bindito.*.dll" />
     <GameReference Include="$(GameManaged)\UnityEngine*.dll" />
+    <!-- Specs expose ImmutableArray<T>; the game ships this assembly alongside its own. -->
+    <GameReference Include="$(GameManaged)\System.Collections.Immutable.dll" />
     <Reference Include="@(GameReference)">
       <Private>false</Private>
     </Reference>
