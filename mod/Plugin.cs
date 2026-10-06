@@ -62,6 +62,12 @@ namespace TimberbornAI
                 return;
             }
 
+            // Unity pauses the whole player loop when the window loses focus. The
+            // agent and the screen recorder both live in other windows, so the game
+            // must keep running unfocused.
+            Application.runInBackground = true;
+            Debug.Log("[TimberbornAI] runInBackground enabled");
+
             var go = new GameObject("TimberbornAI");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Plugin>();
@@ -261,6 +267,7 @@ namespace TimberbornAI
             if (n == 1) Debug.Log("[TimberbornAI] PlayerLoop pump running");
             else if (n % 600 == 0) Debug.Log("[TimberbornAI] pump alive, calls=" + n);
             Interlocked.Exchange(ref _lastTickUtc, DateTime.UtcNow.Ticks);
+            if (n % 120 == 0 && !Application.runInBackground) Application.runInBackground = true;
             DrainJobs();
         }
 
