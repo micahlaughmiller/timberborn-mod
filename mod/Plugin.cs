@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
 using Timberborn.ModManagerScene;
 using UnityEngine;
+using UnityEngine.LowLevel;
 
 namespace TimberbornAI
 {
@@ -28,6 +31,7 @@ namespace TimberbornAI
             var go = new GameObject("TimberbornAI");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Plugin>();
+            Plugin.InstallPlayerLoopHook();
             Debug.Log("[TimberbornAI] StartMod called");
         }
     }
@@ -141,17 +145,65 @@ namespace TimberbornAI
             ctx.Response.OutputStream.Close();
         }
 
-        /// <summary>Drains queued work on the Unity main thread.</summary>
-        private bool _loggedUpdate;
+        private int _updateCalls;
 
+        /// <summary>Backup drain path; only runs while this GameObject is alive and active.</summary>
         private void Update()
         {
-            if (!_loggedUpdate) { _loggedUpdate = true; Debug.Log("[TimberbornAI] Update loop running"); }
+            _updateCalls++;
+            if (_updateCalls == 1) Debug.Log("[TimberbornAI] Update loop running");
+            else if (_updateCalls % 1800 == 0) Debug.Log("[TimberbornAI] Update alive, calls=" + _updateCalls);
+            DrainJobs();
+        }
+
+        // ---- PlayerLoop hook -------------------------------------------------
+        // The GameObject above can be disabled or destroyed by the game's own
+        // scene handling after startup, which silently stops Update(). A system
+        // injected into Unity's PlayerLoop has no such dependency.
+
+        private struct TimberbornAIPump { }
+
+        private static int _pumpCalls;
+
+        internal static void InstallPlayerLoopHook()
+        {
+            var loop = PlayerLoop.GetCurrentPlayerLoop();
+            for (int i = 0; i < loop.subSystemList.Length; i++)
+            {
+                if (loop.subSystemList[i].type != typeof(UnityEngine.PlayerLoop.Update)) continue;
+
+                var list = (loop.subSystemList[i].subSystemList ?? new PlayerLoopSystem[0]).ToList();
+                if (list.Any(x => x.type == typeof(TimberbornAIPump))) return;
+
+                list.Add(new PlayerLoopSystem { type = typeof(TimberbornAIPump), updateDelegate = Pump });
+                loop.subSystemList[i].subSystemList = list.ToArray();
+                PlayerLoop.SetPlayerLoop(loop);
+                Debug.Log("[TimberbornAI] PlayerLoop hook installed");
+                return;
+            }
+
+            Debug.Log("[TimberbornAI] PlayerLoop hook NOT installed: Update phase not found");
+        }
+
+        private static void Pump()
+        {
+            _pumpCalls++;
+            if (_pumpCalls == 1) Debug.Log("[TimberbornAI] PlayerLoop pump running");
+            else if (_pumpCalls % 1800 == 0) Debug.Log("[TimberbornAI] pump alive, calls=" + _pumpCalls);
+            DrainJobs();
+        }
+
+        private static void DrainJobs()
+        {
             while (Jobs.TryDequeue(out var job))
             {
+                var started = DateTime.UtcNow;
                 try { job.Result = job.Work(); }
                 catch (Exception e) { job.Error = e.ToString(); }
                 finally { job.Done.Set(); }
+
+                var ms = (DateTime.UtcNow - started).TotalMilliseconds;
+                if (ms > 200) Debug.Log("[TimberbornAI] slow job: " + (int)ms + " ms");
             }
         }
 
