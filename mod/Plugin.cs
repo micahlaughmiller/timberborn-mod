@@ -107,6 +107,12 @@ namespace TimberbornAI
                     body = r.ReadToEnd();
             }
 
+            if (path == "/health")
+            {
+                Respond(ctx, 200, Health());
+                return;
+            }
+
             Func<string> work;
             switch (path)
             {
@@ -125,7 +131,7 @@ namespace TimberbornAI
 
             if (!job.Done.Wait(TimeSpan.FromSeconds(30)))
             {
-                Respond(ctx, 504, "{\"error\":\"game thread did not respond in 30s\"}");
+                Respond(ctx, 504, "{\"error\":\"game thread did not respond in 30s\",\"health\":" + Health() + "}");
                 return;
             }
 
@@ -133,6 +139,17 @@ namespace TimberbornAI
                 Respond(ctx, 500, $"{{\"error\":{Json.Str(job.Error)}}}");
             else
                 Respond(ctx, 200, job.Result);
+        }
+
+        /// <summary>Runs on the HTTP thread. Never touches the game, so it answers even if the game thread is stuck.</summary>
+        private static string Health()
+        {
+            var last = Interlocked.Read(ref _lastTickUtc);
+            long sinceMs = last == 0 ? -1 : (long)TimeSpan.FromTicks(DateTime.UtcNow.Ticks - last).TotalMilliseconds;
+            return "{\"pump_calls\":" + Interlocked.Read(ref _pumpCalls)
+                 + ",\"update_calls\":" + Interlocked.Read(ref _updateCalls)
+                 + ",\"queued_jobs\":" + Jobs.Count
+                 + ",\"ms_since_last_tick\":" + sinceMs + "}";
         }
 
         private static void Respond(HttpListenerContext ctx, int status, string json)
@@ -145,14 +162,16 @@ namespace TimberbornAI
             ctx.Response.OutputStream.Close();
         }
 
-        private int _updateCalls;
+        private static long _updateCalls;
+        private static long _lastTickUtc;
 
         /// <summary>Backup drain path; only runs while this GameObject is alive and active.</summary>
         private void Update()
         {
-            _updateCalls++;
-            if (_updateCalls == 1) Debug.Log("[TimberbornAI] Update loop running");
-            else if (_updateCalls % 1800 == 0) Debug.Log("[TimberbornAI] Update alive, calls=" + _updateCalls);
+            var n = Interlocked.Increment(ref _updateCalls);
+            if (n == 1) Debug.Log("[TimberbornAI] Update loop running");
+            else if (n % 600 == 0) Debug.Log("[TimberbornAI] Update alive, calls=" + n);
+            Interlocked.Exchange(ref _lastTickUtc, DateTime.UtcNow.Ticks);
             DrainJobs();
         }
 
@@ -163,7 +182,7 @@ namespace TimberbornAI
 
         private struct TimberbornAIPump { }
 
-        private static int _pumpCalls;
+        private static long _pumpCalls;
 
         internal static void InstallPlayerLoopHook()
         {
@@ -187,9 +206,10 @@ namespace TimberbornAI
 
         private static void Pump()
         {
-            _pumpCalls++;
-            if (_pumpCalls == 1) Debug.Log("[TimberbornAI] PlayerLoop pump running");
-            else if (_pumpCalls % 1800 == 0) Debug.Log("[TimberbornAI] pump alive, calls=" + _pumpCalls);
+            var n = Interlocked.Increment(ref _pumpCalls);
+            if (n == 1) Debug.Log("[TimberbornAI] PlayerLoop pump running");
+            else if (n % 600 == 0) Debug.Log("[TimberbornAI] pump alive, calls=" + n);
+            Interlocked.Exchange(ref _lastTickUtc, DateTime.UtcNow.Ticks);
             DrainJobs();
         }
 
