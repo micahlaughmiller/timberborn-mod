@@ -132,6 +132,7 @@ namespace TimberbornAI
             }
 
             var totals = new Dictionary<string, int[]>();
+            int districtsCounted = 0;
             foreach (var center in GameAccess.Enumerate(world.Districts.FinishedDistrictCenters))
             {
                 var counter = Components.Get(center, typeof(DistrictResourceCounter))
@@ -139,6 +140,7 @@ namespace TimberbornAI
                 if (counter == null)
                     throw new InvalidOperationException("no DistrictResourceCounter found on district center: " + Components.Describe(center));
 
+                districtsCounted++;
                 foreach (var id in goodIds)
                 {
                     if (!GameAccess.Invoke(counter, "GetResourceCount", out var count, id) || count == null) continue;
@@ -155,7 +157,15 @@ namespace TimberbornAI
                 .OrderBy(kv => kv.Key)
                 .Select(kv => Json.Str(kv.Key) + ":{\"available\":" + kv.Value[0] + ",\"all\":" + kv.Value[1] + ",\"capacity\":" + kv.Value[2] + "}");
 
-            return "{" + string.Join(",", entries) + "}";
+            // Underscore keys explain an empty result: no goods known, no district counted,
+            // or counters that haven't ticked yet because the game is paused.
+            var all = new List<string>
+            {
+                "\"_goods_checked\":" + goodIds.Count,
+                "\"_districts_counted\":" + districtsCounted
+            };
+            all.AddRange(entries);
+            return "{" + string.Join(",", all) + "}";
         }
 
         /// <summary>Finished district centers with their coordinates (z is height).</summary>
@@ -201,6 +211,7 @@ namespace TimberbornAI
 
             var heightRows = new List<string>();
             var waterRows = new List<string>();
+            string heightType = null;
 
             for (int y = y0; y < y0 + h; y++)
             {
@@ -211,7 +222,10 @@ namespace TimberbornAI
                 {
                     int top = -1;
                     foreach (var level in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(x, y))))
-                        top = Math.Max(top, Convert.ToInt32(level, CultureInfo.InvariantCulture));
+                    {
+                        if (heightType == null && level != null) heightType = level.GetType().FullName;
+                        top = Math.Max(top, HeightOf(level));
+                    }
 
                     hr.Append(top < 0 ? '-' : Base36[Math.Min(top, Base36.Length - 1)]);
                     wr.Append(world.Water.IsWaterOnAnyHeight(new Vector2Int(x, y)) ? '~' : '.');
@@ -223,9 +237,42 @@ namespace TimberbornAI
 
             return "{\"origin\":{\"x\":" + x0 + ",\"y\":" + y0 + "},\"width\":" + w + ",\"height\":" + h
                  + ",\"map_size\":{\"x\":" + size.x + ",\"y\":" + size.y + ",\"z\":" + size.z + "}"
+                 + ",\"height_element_type\":" + Json.Str(heightType)
                  + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~\""
                  + ",\"heights\":[" + string.Join(",", heightRows) + "]"
                  + ",\"water\":[" + string.Join(",", waterRows) + "]}";
+        }
+
+        /// <summary>
+        /// GetAllHeightsInCell's element type isn't confirmed (a plain int cast failed).
+        /// Accept an int-like value, or a struct exposing a top/ceiling/height member, or
+        /// fall back to the largest int property. The first element type seen is reported
+        /// as height_element_type so this can be pinned down.
+        /// </summary>
+        private static int HeightOf(object level)
+        {
+            if (level == null) return -1;
+            if (level is int i) return i;
+            if (level is IConvertible && !(level is string))
+            {
+                try { return Convert.ToInt32(level, CultureInfo.InvariantCulture); } catch { }
+            }
+
+            foreach (var name in new[] { "Ceiling", "Top", "Height", "Max", "Upper", "End" })
+            {
+                var v = GameAccess.Member(level, name);
+                if (v is int n) return n;
+            }
+
+            int best = int.MinValue;
+            foreach (var p in level.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (p.PropertyType != typeof(int) || p.GetIndexParameters().Length > 0) continue;
+                try { best = Math.Max(best, (int)p.GetValue(level)); } catch { }
+            }
+
+            if (best != int.MinValue) return best;
+            throw new InvalidOperationException("cannot read a height from " + level.GetType().FullName + " " + Describer.Describe(level));
         }
 
         /// <summary>Building templates with unlock state. Unlocked only unless all=1.</summary>
