@@ -182,13 +182,13 @@ namespace TimberbornAI
             return false;
         }
 
-        /// <summary>Walkable surface level of a column: highest terrain cell z + 1, or -1 if none.</summary>
+        /// <summary>Surface level of a column: the highest cell z returned for it (already the placement level), or -1 if none.</summary>
         private static int SurfaceZ(AIWorldServices world, int x, int y)
         {
             int top = -1;
             foreach (var cell in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(x, y))))
             {
-                if (cell is Vector3Int v) top = Math.Max(top, v.z + 1);
+                if (cell is Vector3Int v) top = Math.Max(top, v.z);
             }
             return top;
         }

@@ -267,7 +267,7 @@ namespace TimberbornAI
         private static int HeightOf(object level)
         {
             if (level == null) return -1;
-            if (level is Vector3Int cell) return cell.z + 1; // top terrain cell z, +1 = walkable surface level
+            if (level is Vector3Int cell) return cell.z; // the returned cell z is already the surface level (district center z=2 validates at z=2)
             if (level is int i) return i;
             if (level is IConvertible && !(level is string))
             {
