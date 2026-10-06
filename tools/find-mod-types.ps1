@@ -1,23 +1,30 @@
-# Diagnostic: reflect over every DLL in the Timberborn Managed folder and
-# print anything matching the mod-entrypoint naming pattern, plus load/
-# reflection failures instead of swallowing them. Run from the game PC:
+# Diagnostic: dump every type in the Timberborn modding assemblies, with
+# load errors printed (not swallowed), to find the real mod entrypoint
+# interface. Run from the game PC:
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\find-mod-types.ps1
 #
-# Optionally pass a different Managed path as the first argument.
+# Output is also saved to tools\mod-types.txt so it can be pasted/attached whole.
 
 param(
     [string]$ManagedDir = 'C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed'
 )
 
-$dlls = Get-ChildItem -Path $ManagedDir -Filter *.dll
-Write-Host ("found " + $dlls.Count + " dlls in " + $ManagedDir)
+$out = New-Object System.Collections.Generic.List[string]
+function Emit([string]$line) { Write-Host $line; $out.Add($line) }
 
-foreach ($file in $dlls) {
+$targets = Get-ChildItem -Path $ManagedDir -Filter 'Timberborn.Mod*.dll'
+Emit ("matched " + $targets.Count + " assemblies: " + (($targets | ForEach-Object { $_.Name }) -join ', '))
+
+foreach ($file in $targets) {
+    Emit ""
+    Emit ("=== " + $file.Name + " ===")
+
     $asm = $null
     try {
         $asm = [Reflection.Assembly]::LoadFrom($file.FullName)
     } catch {
+        Emit ("LOAD FAIL: " + $_.Exception.Message)
         continue
     }
 
@@ -25,18 +32,21 @@ foreach ($file in $dlls) {
     try {
         $types = $asm.GetTypes()
     } catch [Reflection.ReflectionTypeLoadException] {
+        Emit "partial type load; first loader errors:"
+        $_.Exception.LoaderExceptions | Select-Object -First 3 | ForEach-Object { Emit ("  " + $_.Message) }
         $types = $_.Exception.Types | Where-Object { $_ -ne $null }
     } catch {
+        Emit ("GETTYPES FAIL: " + $_.Exception.Message)
         continue
     }
 
-    $hits = $types | Where-Object {
-        $_.Name -like 'IMod*' -or $_.Name -like '*ModStarter*' -or $_.Name -like '*ModEnvironment*' -or $_.Name -like '*ModEntry*'
-    }
-    foreach ($hit in $hits) {
-        $kind = if ($hit.IsInterface) { 'interface' } else { 'class' }
-        Write-Host ($file.Name + ' :: ' + $hit.FullName + ' [' + $kind + ']')
+    foreach ($t in ($types | Sort-Object FullName)) {
+        $kind = if ($t.IsInterface) { 'interface' } elseif ($t.IsEnum) { 'enum' } else { 'class' }
+        Emit ($kind + ' ' + $t.FullName)
     }
 }
 
-Write-Host "done"
+$dest = Join-Path $PSScriptRoot 'mod-types.txt'
+$out | Set-Content -Path $dest -Encoding UTF8
+Write-Host ""
+Write-Host ("saved to " + $dest)
