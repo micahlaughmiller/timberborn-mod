@@ -19,6 +19,32 @@ namespace TimberbornAI
     /// startup. Unity's RuntimeInitializeOnLoadMethod is NOT honored for mod
     /// assemblies, which is why the earlier bootstrap never ran.
     /// </summary>
+    /// <summary>
+    /// Bisect switches that need no rebuild: an empty file with one of these
+    /// names next to TimberbornAI.dll turns that piece off.
+    ///   no-plugin.flag : StartMod only logs, creates nothing
+    ///   no-hook.flag   : skip the PlayerLoop hook
+    ///   no-http.flag   : skip the HTTP listener and type-index warm-up
+    /// </summary>
+    internal static class Flags
+    {
+        private static readonly string Dir = ResolveDir();
+
+        private static string ResolveDir()
+        {
+            try { return Path.GetDirectoryName(typeof(Flags).Assembly.Location) ?? ""; }
+            catch { return ""; }
+        }
+
+        public static bool Has(string name)
+        {
+            try { return Dir.Length > 0 && File.Exists(Path.Combine(Dir, name)); }
+            catch { return false; }
+        }
+
+        public static string Where() => Dir.Length > 0 ? Dir : "(unknown dir)";
+    }
+
     public class ModStarter : IModStarter
     {
         private static bool _started;
@@ -28,11 +54,20 @@ namespace TimberbornAI
             if (_started) return;
             _started = true;
 
+            Debug.Log("[TimberbornAI] StartMod called; flag dir = " + Flags.Where());
+
+            if (Flags.Has("no-plugin.flag"))
+            {
+                Debug.Log("[TimberbornAI] no-plugin.flag present: doing nothing");
+                return;
+            }
+
             var go = new GameObject("TimberbornAI");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Plugin>();
-            Plugin.InstallPlayerLoopHook();
-            Debug.Log("[TimberbornAI] StartMod called");
+
+            if (Flags.Has("no-hook.flag")) Debug.Log("[TimberbornAI] no-hook.flag present: PlayerLoop hook skipped");
+            else Plugin.InstallPlayerLoopHook();
         }
     }
 
@@ -62,6 +97,12 @@ namespace TimberbornAI
 
         private void Awake()
         {
+            if (Flags.Has("no-http.flag"))
+            {
+                Debug.Log("[TimberbornAI] no-http.flag present: listener not started");
+                return;
+            }
+
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
             _listener.Start();
