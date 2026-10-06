@@ -17,6 +17,7 @@ using Timberborn.HazardousWeatherSystem;
 using Timberborn.MapStateSystem;
 using Timberborn.ScienceSystem;
 using Timberborn.SingletonSystem;
+using Timberborn.TemplateCollectionSystem;
 using Timberborn.TerrainSystem;
 using Timberborn.TimeSystem;
 using Timberborn.WaterSystem;
@@ -140,6 +141,7 @@ namespace TimberbornAI
         public readonly ISpecService Specs;
         public readonly BlockValidator Validator;
         public readonly ConstructionFactory Construction;
+        public readonly TemplateCollectionService Templates;
 
         public AIBuildServices(
             BuildingService buildings,
@@ -148,8 +150,10 @@ namespace TimberbornAI
             BlockObjectPlacerService placers,
             ISpecService specs,
             BlockValidator validator,
-            ConstructionFactory construction)
+            ConstructionFactory construction,
+            TemplateCollectionService templates)
         {
+            Templates = templates;
             Buildings = buildings;
             Unlocking = unlocking;
             Science = science;

@@ -100,6 +100,44 @@ namespace TimberbornAI
         private static bool TryGetBlueprint(AIBuildServices build, string name, out Blueprint blueprint, out string error)
         {
             var errors = new List<string>();
+
+            // Preferred: the game's own list of every template blueprint, matched by name.
+            // No path format needed, and the names are the ones /buildings reports.
+            try
+            {
+                Blueprint caseInsensitive = null;
+                foreach (var item in GameAccess.Enumerate(build.Templates.AllTemplates))
+                {
+                    var candidate = item as Blueprint;
+                    if (candidate == null) continue;
+
+                    if (candidate.Name == name)
+                    {
+                        blueprint = candidate;
+                        error = null;
+                        return true;
+                    }
+
+                    if (caseInsensitive == null && string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase))
+                        caseInsensitive = candidate;
+                }
+
+                if (caseInsensitive != null)
+                {
+                    blueprint = caseInsensitive;
+                    error = null;
+                    return true;
+                }
+
+                errors.Add("not in TemplateCollectionService.AllTemplates");
+            }
+            catch (Exception e)
+            {
+                var root = Root(e);
+                errors.Add("AllTemplates lookup failed: " + root.GetType().Name + ": " + root.Message);
+            }
+
+            // Fallback: ask ISpecService directly with a few path shapes.
             foreach (var candidate in new[] { name, "Buildings/" + name, "Blueprints/Buildings/" + name })
             {
                 try
