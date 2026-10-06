@@ -4,26 +4,31 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
+using Timberborn.ModManagerScene;
 using UnityEngine;
 
 namespace TimberbornAI
 {
     /// <summary>
-    /// Bootstraps the plugin without depending on any mod-loader-specific
-    /// entrypoint interface. Update 6+'s native loader just needs to get this
-    /// assembly into the game process (per manifest.json); once that's true,
-    /// Unity itself calls this method automatically after the first scene
-    /// loads. This avoids hard-coding a native-loader entrypoint contract
-    /// this repo can't verify without the game installed.
+    /// Entry point the game's own mod loader calls. Timberborn.ModManagerScene
+    /// finds every IModStarter implementation in enabled mods' assemblies,
+    /// constructs it (parameterless ctor required) and calls StartMod once at
+    /// startup. Unity's RuntimeInitializeOnLoadMethod is NOT honored for mod
+    /// assemblies, which is why the earlier bootstrap never ran.
     /// </summary>
-    public static class Bootstrap
+    public class ModStarter : IModStarter
     {
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void Install()
+        private static bool _started;
+
+        public void StartMod(IModEnvironment modEnvironment)
         {
+            if (_started) return;
+            _started = true;
+
             var go = new GameObject("TimberbornAI");
             UnityEngine.Object.DontDestroyOnLoad(go);
             go.AddComponent<Plugin>();
+            Debug.Log("[TimberbornAI] StartMod called");
         }
     }
 

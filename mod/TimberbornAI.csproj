@@ -36,10 +36,13 @@
       <HintPath>$(GameManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- RuntimeInitializeOnLoadMethod pulls in PreserveAttribute, which this
-         build ships in its own assembly rather than UnityEngine.CoreModule. -->
-    <Reference Include="Unity.Scripting" Condition="Exists('$(GameManaged)\Unity.Scripting.dll')">
-      <HintPath>$(GameManaged)\Unity.Scripting.dll</HintPath>
+    <!-- Game assemblies that define the IModStarter entry point contract. -->
+    <Reference Include="Timberborn.ModManagerScene">
+      <HintPath>$(GameManaged)\Timberborn.ModManagerScene.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Timberborn.Modding">
+      <HintPath>$(GameManaged)\Timberborn.Modding.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
