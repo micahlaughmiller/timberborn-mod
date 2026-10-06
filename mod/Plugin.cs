@@ -65,6 +65,13 @@ namespace TimberbornAI
             _listenerThread = new Thread(ListenLoop) { IsBackground = true };
             _listenerThread.Start();
 
+            // Index game types off the main thread so the first /state isn't slow.
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try { GameAccess.Warm(); Debug.Log("[TimberbornAI] type index ready"); }
+                catch (Exception e) { Debug.Log("[TimberbornAI] type index failed: " + e.Message); }
+            });
+
             Debug.Log($"[TimberbornAI] listening on http://127.0.0.1:{Port}/");
         }
 
@@ -99,6 +106,7 @@ namespace TimberbornAI
             Func<string> work;
             switch (path)
             {
+                case "/ping":    work = () => "{\"ok\":true}"; break;
                 case "/state":   work = () => StateReader.Snapshot(); break;
                 case "/command": work = () => CommandExecutor.Execute(body); break;
                 case "/say":     work = () => OverlayPanel.SetNarration(body); break;
@@ -111,9 +119,9 @@ namespace TimberbornAI
             var job = new PendingJob { Work = work };
             Jobs.Enqueue(job);
 
-            if (!job.Done.Wait(TimeSpan.FromSeconds(10)))
+            if (!job.Done.Wait(TimeSpan.FromSeconds(30)))
             {
-                Respond(ctx, 504, "{\"error\":\"game thread did not respond in 10s\"}");
+                Respond(ctx, 504, "{\"error\":\"game thread did not respond in 30s\"}");
                 return;
             }
 
@@ -134,8 +142,11 @@ namespace TimberbornAI
         }
 
         /// <summary>Drains queued work on the Unity main thread.</summary>
+        private bool _loggedUpdate;
+
         private void Update()
         {
+            if (!_loggedUpdate) { _loggedUpdate = true; Debug.Log("[TimberbornAI] Update loop running"); }
             while (Jobs.TryDequeue(out var job))
             {
                 try { job.Result = job.Work(); }

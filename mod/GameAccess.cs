@@ -34,27 +34,56 @@ namespace TimberbornAI
             ["placer"]     = new[] { "BlockObjectPlacer", "BuildingPlacer", "PlacementService" },
         };
 
+        private static Dictionary<string, Type> _index;
+        private static int _indexedAssemblies;
+        private static readonly object IndexLock = new object();
+
+        /// <summary>
+        /// Builds a simple-name -> Type map across all loaded assemblies in ONE pass.
+        /// Scanning 600+ assemblies per candidate name froze the game thread for
+        /// longer than the HTTP timeout. Rebuilt only when new assemblies have
+        /// loaded since the last build (scene assemblies load lazily).
+        /// </summary>
+        private static void EnsureIndex()
+        {
+            lock (IndexLock)
+            {
+                var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                if (_index != null && assemblies.Length == _indexedAssemblies) return;
+
+                var map = new Dictionary<string, Type>();
+                foreach (var asm in assemblies)
+                {
+                    Type[] types;
+                    try { types = asm.GetTypes(); }
+                    catch (ReflectionTypeLoadException e) { types = e.Types.Where(t => t != null).ToArray(); }
+                    catch { continue; }
+
+                    foreach (var t in types)
+                        if (!map.ContainsKey(t.Name)) map[t.Name] = t;
+                }
+
+                _index = map;
+                _indexedAssemblies = assemblies.Length;
+            }
+        }
+
+        /// <summary>Call from a background thread at startup so the first request isn't slow.</summary>
+        public static void Warm() => EnsureIndex();
+
         /// <summary>Resolves the first candidate type that exists in any loaded assembly.</summary>
         public static Type Resolve(string concept)
         {
-            if (TypeCache.TryGetValue(concept, out var cached)) return cached;
+            if (TypeCache.TryGetValue(concept, out var cached) && cached != null) return cached;
+
+            EnsureIndex();
 
             Type found = null;
             if (CandidateNames.TryGetValue(concept, out var names))
             {
-                var all = AppDomain.CurrentDomain.GetAssemblies();
                 foreach (var name in names)
                 {
-                    foreach (var asm in all)
-                    {
-                        Type[] types;
-                        try { types = asm.GetTypes(); }
-                        catch (ReflectionTypeLoadException e) { types = e.Types.Where(t => t != null).ToArray(); }
-
-                        found = types.FirstOrDefault(t => t.Name == name);
-                        if (found != null) break;
-                    }
-                    if (found != null) break;
+                    if (_index.TryGetValue(name, out found)) break;
                 }
             }
 
