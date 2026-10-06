@@ -1,0 +1,148 @@
+using System;
+using System.Collections.Generic;
+using Timberborn.BlockSystem;
+using Timberborn.BlueprintSystem;
+using Timberborn.Coordinates;
+using Timberborn.EntitySystem;
+using UnityEngine;
+
+namespace TimberbornAI
+{
+    /// <summary>
+    /// Places a building the way the game's own tool does, minus the mouse:
+    /// template lookup, unlock check, physical validity check, then a normal
+    /// construction site. Beavers deliver the materials, so cost and build time
+    /// behave exactly as for a human click. Every refusal says why, so the agent
+    /// can adapt instead of repeating a command that cannot work.
+    /// </summary>
+    internal static class Placer
+    {
+        /// <summary>Returns the same {"ok":..} JSON shape as the other commands.</summary>
+        public static string Place(string body)
+        {
+            var prefab = Json.Field(body, "prefab");
+            if (string.IsNullOrEmpty(prefab)) return Fail("build requires \"prefab\" (see /buildings)");
+
+            int x = Json.Int(body, "x", int.MinValue);
+            int y = Json.Int(body, "y", int.MinValue);
+            if (x == int.MinValue || y == int.MinValue) return Fail("build requires \"x\" and \"y\"");
+
+            var build = AIBuildServices.Instance;
+            var world = AIWorldServices.Instance;
+            if (build == null || world == null)
+                return Fail("no save loaded, or build/world services not bound (check no-build.flag / no-world.flag)");
+
+            // 1. Does the template exist, and is it unlocked?
+            object spec;
+            try
+            {
+                if (!GameAccess.Invoke(build.Buildings, "GetBuildingTemplate", out spec, prefab) || spec == null)
+                    return Fail("unknown building \"" + prefab + "\" (see /buildings)");
+            }
+            catch (Exception e)
+            {
+                return Fail("unknown building \"" + prefab + "\": " + Root(e).Message + " (see /buildings)");
+            }
+
+            GameAccess.Invoke(build.Unlocking, "Unlocked", out var unlocked, spec);
+            if (!(unlocked is bool isUnlocked && isUnlocked))
+                return Fail("\"" + prefab + "\" is not unlocked yet (needs science; see /buildings)");
+
+            // 2. Find its blueprint and the block layout inside it.
+            if (!TryGetBlueprint(build, prefab, out var blueprint, out var blueprintError))
+                return Fail(blueprintError);
+
+            var blockSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
+            if (blockSpec == null)
+                return Fail("\"" + prefab + "\" has no BlockObjectSpec, so it cannot be placed on the map");
+
+            // 3. Where, and facing which way.
+            int z = Json.Int(body, "z", int.MinValue);
+            if (z == int.MinValue) z = SurfaceZ(world, x, y);
+            if (z < 0) return Fail("no terrain at " + x + "," + y);
+
+            Orientation orientation;
+            try { orientation = (Orientation)Enum.Parse(typeof(Orientation), Json.Field(body, "orientation") ?? "Cw0", true); }
+            catch { return Fail("orientation must be Cw0, Cw90, Cw180 or Cw270"); }
+
+            var flipped = (Json.Field(body, "flip") ?? "false").ToLowerInvariant() == "true";
+            var placement = new Placement(new Vector3Int(x, y, z), orientation, flipped ? FlipMode.Flipped : FlipMode.Unflipped);
+
+            // 4. Physical validity: free cells, support below, terrain.
+            if (!build.Validator.BlocksValid(blockSpec, placement))
+                return Fail("cannot place " + prefab + " at " + x + "," + y + "," + z
+                            + ": cells are occupied, unsupported or blocked (check /map; trees and other buildings block)");
+
+            // 5. Create it. PlaceFinished buildings (for example paths) appear complete.
+            try
+            {
+                var builder = new EntitySetup.Builder(blueprint);
+                bool finished = GameAccess.Member(spec, "PlaceFinished") is bool f && f;
+                var created = finished
+                    ? build.Construction.CreateAsFinished(builder, placement)
+                    : build.Construction.CreateAsUnfinished(builder, placement);
+
+                return Ok((finished ? "placed " : "queued ") + prefab + " at " + x + "," + y + "," + z
+                          + " facing " + orientation + (created == null ? "" : " (entity created)"));
+            }
+            catch (Exception e)
+            {
+                var root = Root(e);
+                return Fail("game refused to create " + prefab + ": " + root.GetType().Name + ": " + root.Message);
+            }
+        }
+
+        /// <summary>
+        /// ISpecService.GetBlueprint wants a blueprint path whose exact form is not confirmed.
+        /// Tries the template name, then common folder prefixes, and reports every failure
+        /// so the real format can be read off the game's own error text.
+        /// </summary>
+        private static bool TryGetBlueprint(AIBuildServices build, string name, out Blueprint blueprint, out string error)
+        {
+            var errors = new List<string>();
+            foreach (var candidate in new[] { name, "Buildings/" + name, "Blueprints/Buildings/" + name })
+            {
+                try
+                {
+                    var found = build.Specs.GetBlueprint(candidate);
+                    if (found != null)
+                    {
+                        blueprint = found;
+                        error = null;
+                        return true;
+                    }
+                    errors.Add("[" + candidate + "] returned null");
+                }
+                catch (Exception e)
+                {
+                    var root = Root(e);
+                    errors.Add("[" + candidate + "] " + root.GetType().Name + ": " + root.Message);
+                }
+            }
+
+            blueprint = null;
+            error = "no blueprint found for \"" + name + "\". ISpecService.GetBlueprint said: " + string.Join(" | ", errors);
+            return false;
+        }
+
+        /// <summary>Walkable surface level of a column: highest terrain cell z + 1, or -1 if none.</summary>
+        private static int SurfaceZ(AIWorldServices world, int x, int y)
+        {
+            int top = -1;
+            foreach (var cell in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(x, y))))
+            {
+                if (cell is Vector3Int v) top = Math.Max(top, v.z + 1);
+            }
+            return top;
+        }
+
+        private static Exception Root(Exception e)
+        {
+            while (e.InnerException != null) e = e.InnerException;
+            return e;
+        }
+
+        private static string Ok(string detail) => "{\"ok\":true,\"detail\":" + Json.Str(detail) + "}";
+        private static string Fail(string error) => "{\"ok\":false,\"error\":" + Json.Str(error) + "}";
+    }
+}

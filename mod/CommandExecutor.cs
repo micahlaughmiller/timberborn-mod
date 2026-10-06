@@ -20,7 +20,7 @@ namespace TimberbornAI
 
             switch (action)
             {
-                case "build":       return Build(body);
+                case "build":       return Placer.Place(body);
                 case "set_speed":   return SetSpeed(body);
                 case "pause":       return SetSpeed("{\"speed\":0}");
                 case "note":        return OverlayPanel.SetNarration(body);
@@ -28,32 +28,9 @@ namespace TimberbornAI
             }
         }
 
-        private static string Build(string body)
-        {
-            var prefab = Json.Field(body, "prefab");
-            if (string.IsNullOrEmpty(prefab)) return Fail("build requires \"prefab\"");
-
-            int x = Json.Int(body, "x", int.MinValue);
-            int y = Json.Int(body, "y", int.MinValue);
-            int z = Json.Int(body, "z", 0);
-            if (x == int.MinValue || y == int.MinValue) return Fail("build requires \"x\" and \"y\"");
-
-            // Placement goes through the game's own placer so validation,
-            // cost and the build queue all behave exactly as for a human click.
-            var placer = GameAccess.FindOne("placer")
-                         ?? GameAccess.FindOne("building");
-            if (placer == null)
-                return Fail("no placement service resolved — run GET /dump and update GameAccess.CandidateNames");
-
-            if (!GameAccess.Invoke(placer, "Place", out var result, prefab, new Vector3Int(x, y, z)))
-                return Fail("placement method not found on resolved service");
-
-            return Ok($"queued {prefab} at {x},{y},{z}");
-        }
-
         private static string SetSpeed(string body)
         {
-            int speed = Mathf.Clamp(Json.Int(body, "speed", 1), 0, 3);
+            int speed = Mathf.Clamp(Json.Int(body, "speed", 1), 0, 7);
 
             var services = AIGameServices.Instance;
             if (services == null)

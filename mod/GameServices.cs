@@ -4,6 +4,9 @@ using System.Globalization;
 using System.Reflection;
 using Bindito.Core;
 using Timberborn.Beavers;
+using Timberborn.BlockSystem;
+using Timberborn.BlueprintSystem;
+using Timberborn.ConstructionSites;
 using Timberborn.BlockObjectTools;
 using Timberborn.Buildings;
 using Timberborn.EntitySystem;
@@ -134,17 +137,26 @@ namespace TimberbornAI
         public readonly BuildingUnlockingService Unlocking;
         public readonly ScienceService Science;
         public readonly BlockObjectPlacerService Placers;
+        public readonly ISpecService Specs;
+        public readonly BlockValidator Validator;
+        public readonly ConstructionFactory Construction;
 
         public AIBuildServices(
             BuildingService buildings,
             BuildingUnlockingService unlocking,
             ScienceService science,
-            BlockObjectPlacerService placers)
+            BlockObjectPlacerService placers,
+            ISpecService specs,
+            BlockValidator validator,
+            ConstructionFactory construction)
         {
             Buildings = buildings;
             Unlocking = unlocking;
             Science = science;
             Placers = placers;
+            Specs = specs;
+            Validator = validator;
+            Construction = construction;
         }
 
         public void Load()
