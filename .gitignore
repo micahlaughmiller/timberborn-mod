@@ -3,3 +3,7 @@ obj/
 __pycache__/
 *.user
 .env
+
+# local script output
+tools/find-types-out.txt
+tools/mod-types.txt
