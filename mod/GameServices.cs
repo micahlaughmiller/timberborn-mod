@@ -4,11 +4,19 @@ using System.Globalization;
 using System.Reflection;
 using Bindito.Core;
 using Timberborn.Beavers;
+using Timberborn.BlockObjectTools;
+using Timberborn.Buildings;
 using Timberborn.EntitySystem;
 using Timberborn.GameCycleSystem;
+using Timberborn.GameDistricts;
+using Timberborn.Goods;
 using Timberborn.HazardousWeatherSystem;
+using Timberborn.MapStateSystem;
+using Timberborn.ScienceSystem;
 using Timberborn.SingletonSystem;
+using Timberborn.TerrainSystem;
 using Timberborn.TimeSystem;
+using Timberborn.WaterSystem;
 using Timberborn.WeatherSystem;
 using UnityEngine;
 
@@ -34,6 +42,14 @@ namespace TimberbornAI
             }
 
             Bind<AIGameServices>().AsSingleton();
+
+            // Separate holders, each with its own off-switch: a wrong constructor
+            // argument stops saves from loading, so isolate the risk per group.
+            if (Flags.Has("no-world.flag")) Debug.Log("[TimberbornAI] no-world.flag present: world services not bound");
+            else Bind<AIWorldServices>().AsSingleton();
+
+            if (Flags.Has("no-build.flag")) Debug.Log("[TimberbornAI] no-build.flag present: build services not bound");
+            else Bind<AIBuildServices>().AsSingleton();
         }
     }
 
@@ -74,6 +90,67 @@ namespace TimberbornAI
         {
             Instance = this;
             Debug.Log("[TimberbornAI] game services bound");
+        }
+    }
+
+    /// <summary>Districts, goods, terrain and water: what the map contains and what is stockpiled.</summary>
+    public class AIWorldServices : ILoadableSingleton
+    {
+        public static AIWorldServices Instance { get; private set; }
+
+        public readonly DistrictCenterRegistry Districts;
+        public readonly IGoodService Goods;
+        public readonly ITerrainService Terrain;
+        public readonly IThreadSafeWaterMap Water;
+        public readonly MapSize MapSize;
+
+        public AIWorldServices(
+            DistrictCenterRegistry districts,
+            IGoodService goods,
+            ITerrainService terrain,
+            IThreadSafeWaterMap water,
+            MapSize mapSize)
+        {
+            Districts = districts;
+            Goods = goods;
+            Terrain = terrain;
+            Water = water;
+            MapSize = mapSize;
+        }
+
+        public void Load()
+        {
+            Instance = this;
+            Debug.Log("[TimberbornAI] world services bound");
+        }
+    }
+
+    /// <summary>Which buildings exist and are unlocked, science points, and the placement service.</summary>
+    public class AIBuildServices : ILoadableSingleton
+    {
+        public static AIBuildServices Instance { get; private set; }
+
+        public readonly BuildingService Buildings;
+        public readonly BuildingUnlockingService Unlocking;
+        public readonly ScienceService Science;
+        public readonly BlockObjectPlacerService Placers;
+
+        public AIBuildServices(
+            BuildingService buildings,
+            BuildingUnlockingService unlocking,
+            ScienceService science,
+            BlockObjectPlacerService placers)
+        {
+            Buildings = buildings;
+            Unlocking = unlocking;
+            Science = science;
+            Placers = placers;
+        }
+
+        public void Load()
+        {
+            Instance = this;
+            Debug.Log("[TimberbornAI] build services bound");
         }
     }
 

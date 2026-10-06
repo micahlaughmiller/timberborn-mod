@@ -170,9 +170,13 @@ namespace TimberbornAI
                 return;
             }
 
+            var query = ctx.Request.QueryString;
+
             Func<string> work;
             switch (path)
             {
+                case "/map":       work = () => WorldReader.Map(query); break;
+                case "/buildings": work = () => WorldReader.Buildings(query); break;
                 case "/ping":    work = () => "{\"ok\":true}"; break;
                 case "/state":   work = () => StateReader.Snapshot(); break;
                 case "/command": work = () => CommandExecutor.Execute(body); break;

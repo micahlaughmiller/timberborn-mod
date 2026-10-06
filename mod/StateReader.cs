@@ -84,6 +84,14 @@ namespace TimberbornAI
                   .Append('}');
             });
 
+            Section(sb, errors, "districts", () => sb.Append(",\"districts\":").Append(WorldReader.Districts()));
+            Section(sb, errors, "stock", () => sb.Append(",\"stock\":").Append(WorldReader.Stock()));
+            Section(sb, errors, "science", () =>
+            {
+                var build = AIBuildServices.Instance;
+                if (build != null) sb.Append(",\"science_points\":").Append(build.Science.SciencePoints);
+            });
+
             // Members not yet confirmed: dump their readable properties so the real
             // names show up in /state without another lookup round.
             Section(sb, errors, "raw", () =>

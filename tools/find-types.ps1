@@ -5,12 +5,14 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\find-types.ps1 -Pattern "^WeatherService$" -Members
 #
 # -Pattern  regex matched against the simple type name (case-insensitive)
+# -Full     with -Members, print fully qualified type names for parameters and returns
 # -Members  also list constructors, properties, fields and methods of each match
 # Output is printed and saved to tools\find-types-out.txt
 
 param(
     [Parameter(Mandatory = $true)][string]$Pattern,
     [switch]$Members,
+    [switch]$Full,
     [string]$ManagedDir = 'C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed'
 )
 
@@ -21,6 +23,11 @@ $files = Get-ChildItem -Path $ManagedDir -Filter '*.dll' |
     Where-Object { $_.Name -like 'Timberborn.*' -or $_.Name -like 'Bindito.*' }
 
 $flags = [Reflection.BindingFlags]'Public,Instance,Static,DeclaredOnly'
+
+function TypeName([Type]$t) {
+    if ($Full -and $t.FullName) { return $t.FullName }
+    return $t.Name
+}
 
 foreach ($file in $files) {
     $asm = $null
@@ -39,14 +46,14 @@ foreach ($file in $files) {
 
         try {
             foreach ($c in $t.GetConstructors($flags)) {
-                $ps = ($c.GetParameters() | ForEach-Object { $_.ParameterType.Name + ' ' + $_.Name }) -join ', '
+                $ps = ($c.GetParameters() | ForEach-Object { (TypeName $_.ParameterType) + ' ' + $_.Name }) -join ', '
                 Emit ('    ctor(' + $ps + ')')
             }
-            foreach ($p in $t.GetProperties($flags)) { Emit ('    prop   ' + $p.PropertyType.Name + ' ' + $p.Name) }
-            foreach ($f in $t.GetFields($flags))     { Emit ('    field  ' + $f.FieldType.Name + ' ' + $f.Name) }
+            foreach ($p in $t.GetProperties($flags)) { Emit ('    prop   ' + (TypeName $p.PropertyType) + ' ' + $p.Name) }
+            foreach ($f in $t.GetFields($flags))     { Emit ('    field  ' + (TypeName $f.FieldType) + ' ' + $f.Name) }
             foreach ($m in ($t.GetMethods($flags) | Where-Object { -not $_.IsSpecialName })) {
-                $ps = ($m.GetParameters() | ForEach-Object { $_.ParameterType.Name + ' ' + $_.Name }) -join ', '
-                Emit ('    method ' + $m.ReturnType.Name + ' ' + $m.Name + '(' + $ps + ')')
+                $ps = ($m.GetParameters() | ForEach-Object { (TypeName $_.ParameterType) + ' ' + $_.Name }) -join ', '
+                Emit ('    method ' + (TypeName $m.ReturnType) + ' ' + $m.Name + '(' + $ps + ')')
             }
         } catch {
             Emit ('    (could not read members: ' + $_.Exception.Message + ')')
