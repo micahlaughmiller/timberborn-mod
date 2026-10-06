@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using UnityEngine;
 
 namespace TimberbornAI
 {
@@ -15,6 +16,12 @@ namespace TimberbornAI
         {
             var sb = new StringBuilder("{");
             var unresolved = new List<string>();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            void Mark(string section)
+            {
+                Debug.Log("[TimberbornAI] state: " + section + " " + sw.ElapsedMilliseconds + " ms");
+                sw.Restart();
+            }
 
             // --- time / weather -------------------------------------------------
             var weather = GameAccess.FindOne("weather");
@@ -27,6 +34,8 @@ namespace TimberbornAI
                 GameAccess.MemberAny(weather, "IsDrought", "DroughtStarted") is bool d && d ? "true" : "false");
             sb.Append(",\"days_until_drought\":").Append(GameAccess.IntOf(
                 GameAccess.MemberAny(weather, "DaysUntilDrought", "TemperateWeatherDaysLeft"), -1));
+
+            Mark("weather");
 
             // --- population -----------------------------------------------------
             var beavers = GameAccess.FindAll("beaver");
@@ -43,6 +52,8 @@ namespace TimberbornAI
             sb.Append(",\"hungry\":").Append(hungry)
               .Append(",\"thirsty\":").Append(thirsty)
               .Append(",\"homeless\":").Append(homeless);
+
+            Mark("population");
 
             // --- stored goods ---------------------------------------------------
             var totals = new Dictionary<string, int>();
@@ -63,6 +74,8 @@ namespace TimberbornAI
                 .OrderByDescending(kv => kv.Value)
                 .Select(kv => $"{Json.Str(kv.Key)}:{kv.Value}"))).Append('}');
 
+            Mark("goods");
+
             // --- buildings ------------------------------------------------------
             var byKind = new Dictionary<string, int>();
             foreach (var b in GameAccess.FindAll("building"))
@@ -75,6 +88,8 @@ namespace TimberbornAI
             sb.Append(",\"buildings\":{").Append(string.Join(",", byKind
                 .OrderByDescending(kv => kv.Value)
                 .Select(kv => $"{Json.Str(kv.Key)}:{kv.Value}"))).Append('}');
+
+            Mark("buildings");
 
             // Surfaced so the agent can report a broken binding instead of
             // silently reasoning over zeros after a game update.

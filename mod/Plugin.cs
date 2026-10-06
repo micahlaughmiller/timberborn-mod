@@ -89,6 +89,7 @@ namespace TimberbornAI
 
         private sealed class PendingJob
         {
+            public string Name;
             public Func<string> Work;
             public string Result;
             public string Error;
@@ -133,8 +134,17 @@ namespace TimberbornAI
                 try { ctx = _listener.GetContext(); }
                 catch { return; } // listener stopped
 
-                try { Handle(ctx); }
-                catch (Exception e) { Respond(ctx, 500, $"{{\"error\":{Json.Str(e.Message)}}}"); }
+                // One request per pool thread: a slow game-thread job must not
+                // block /health and /ping behind it.
+                var captured = ctx;
+                ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try { Handle(captured); }
+                    catch (Exception e)
+                    {
+                        try { Respond(captured, 500, $"{{\"error\":{Json.Str(e.Message)}}}"); } catch { }
+                    }
+                });
             }
         }
 
@@ -167,7 +177,7 @@ namespace TimberbornAI
                     return;
             }
 
-            var job = new PendingJob { Work = work };
+            var job = new PendingJob { Work = work, Name = path };
             Jobs.Enqueue(job);
 
             if (!job.Done.Wait(TimeSpan.FromSeconds(30)))
@@ -259,12 +269,13 @@ namespace TimberbornAI
             while (Jobs.TryDequeue(out var job))
             {
                 var started = DateTime.UtcNow;
+                Debug.Log("[TimberbornAI] job start " + job.Name);
                 try { job.Result = job.Work(); }
                 catch (Exception e) { job.Error = e.ToString(); }
                 finally { job.Done.Set(); }
 
                 var ms = (DateTime.UtcNow - started).TotalMilliseconds;
-                if (ms > 200) Debug.Log("[TimberbornAI] slow job: " + (int)ms + " ms");
+                Debug.Log("[TimberbornAI] job done " + job.Name + " in " + (int)ms + " ms" + (job.Error != null ? " (error)" : ""));
             }
         }
 
