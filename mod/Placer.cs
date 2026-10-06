@@ -70,8 +70,27 @@ namespace TimberbornAI
 
             // 4. Physical validity: free cells, support below, terrain.
             if (!build.Validator.BlocksValid(blockSpec, placement))
+            {
+                // If a neighbouring height is valid, the height convention is the problem,
+                // not an obstruction. Report it so the difference is visible.
+                var valid = new List<string>();
+                foreach (var dz in new[] { -2, -1, 1, 2 })
+                {
+                    try
+                    {
+                        var shifted = new Placement(new Vector3Int(x, y, z + dz), orientation, flipped ? FlipMode.Flipped : FlipMode.Unflipped);
+                        if (build.Validator.BlocksValid(blockSpec, shifted)) valid.Add((z + dz).ToString());
+                    }
+                    catch { }
+                }
+
                 return Fail("cannot place " + prefab + " at " + x + "," + y + "," + z
-                            + ": cells are occupied, unsupported or blocked (check /map; trees and other buildings block)");
+                            + ": cells are occupied, unsupported or blocked (check /map; trees and other buildings block)"
+                            + (valid.Count > 0 ? ". It WOULD be valid at z=" + string.Join(",", valid) + ", so the surface height used here is off" : ". No nearby height is valid either, so something is on or under this spot"));
+            }
+
+            if ((Json.Field(body, "dry_run") ?? "false").ToLowerInvariant() == "true")
+                return Ok("valid: " + prefab + " can be placed at " + x + "," + y + "," + z + " facing " + orientation + " (dry run, nothing created)");
 
             // 5. Create it. PlaceFinished buildings (for example paths) appear complete.
             try
