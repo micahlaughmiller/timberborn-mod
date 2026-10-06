@@ -53,17 +53,28 @@ namespace TimberbornAI
 
         private static string SetSpeed(string body)
         {
-            int speed = Json.Int(body, "speed", 1);
-            speed = Mathf.Clamp(speed, 0, 10);
+            int speed = Mathf.Clamp(Json.Int(body, "speed", 1), 0, 3);
 
-            var svc = GameAccess.FindOne("daynight");
-            if (svc != null && GameAccess.Invoke(svc, "ChangeSpeed", out _, (float)speed))
-                return Ok($"speed {speed}");
+            var services = AIGameServices.Instance;
+            if (services == null)
+                return Fail("no save loaded, cannot change speed");
 
-            // Fallback: Unity's own clock still gives the recording a usable
-            // fast-forward even when the game service isn't resolved.
-            Time.timeScale = speed;
-            return Ok($"speed {speed} (via timeScale fallback)");
+            // SpeedManager's member names aren't confirmed; /state -> raw.speed_manager
+            // lists what it exposes. Try the likely names and report what happened.
+            foreach (var method in new[] { "ChangeSpeed", "SetSpeed" })
+            {
+                try
+                {
+                    if (GameAccess.Invoke(services.Speed, method, out _, (float)speed))
+                        return Ok("speed " + speed + " via " + method);
+                }
+                catch (Exception e)
+                {
+                    return Fail(method + " threw: " + e.GetType().Name + ": " + e.Message);
+                }
+            }
+
+            return Fail("SpeedManager has no ChangeSpeed/SetSpeed(float); see /state raw.speed_manager");
         }
 
         private static string Ok(string msg)   => $"{{\"ok\":true,\"detail\":{Json.Str(msg)}}}";

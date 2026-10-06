@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,98 +7,110 @@ using UnityEngine;
 namespace TimberbornAI
 {
     /// <summary>
-    /// Builds the JSON world snapshot the agent reasons over. Deliberately
-    /// compact: an LLM reads this every tick, so it carries decision-relevant
-    /// signal only, not a full entity dump.
+    /// Builds the JSON world snapshot the agent reasons over, from the live game
+    /// services injected into AIGameServices. Compact on purpose: an LLM reads
+    /// this every turn, so it carries decision-relevant signal only.
+    ///
+    /// Each section is isolated, so one failing read becomes an entry in "errors"
+    /// instead of taking down the whole snapshot.
     /// </summary>
     internal static class StateReader
     {
+        private const int MaxEntities = 20000;
+
         public static string Snapshot()
         {
-            var sb = new StringBuilder("{");
-            var unresolved = new List<string>();
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            void Mark(string section)
+            var svc = AIGameServices.Instance;
+            if (svc == null)
+                return "{\"in_game\":false,\"note\":\"no save loaded, or game services not bound yet\"}";
+
+            var sb = new StringBuilder("{\"in_game\":true");
+            var errors = new List<string>();
+
+            Section(sb, errors, "time", () =>
             {
-                Debug.Log("[TimberbornAI] state: " + section + " " + sw.ElapsedMilliseconds + " ms");
-                sw.Restart();
-            }
+                sb.Append(",\"cycle\":").Append(svc.Cycle.Cycle)
+                  .Append(",\"cycle_day\":").Append(svc.Cycle.CycleDay)
+                  .Append(",\"cycle_progress\":").Append(svc.Cycle.PartialCycleDay.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+            });
 
-            // --- time / weather -------------------------------------------------
-            var weather = GameAccess.FindOne("weather");
-            if (weather == null) unresolved.Add("weather");
-            sb.Append("\"cycle\":").Append(GameAccess.IntOf(
-                GameAccess.MemberAny(weather, "Cycle", "CycleNumber", "CurrentCycle")));
-            sb.Append(",\"cycle_day\":").Append(GameAccess.IntOf(
-                GameAccess.MemberAny(weather, "CycleDay", "DayNumber", "Day")));
-            sb.Append(",\"is_drought\":").Append(
-                GameAccess.MemberAny(weather, "IsDrought", "DroughtStarted") is bool d && d ? "true" : "false");
-            sb.Append(",\"days_until_drought\":").Append(GameAccess.IntOf(
-                GameAccess.MemberAny(weather, "DaysUntilDrought", "TemperateWeatherDaysLeft"), -1));
-
-            Mark("weather");
-
-            // --- population -----------------------------------------------------
-            var beavers = GameAccess.FindAll("beaver");
-            if (beavers.Length == 0) unresolved.Add("beaver");
-            sb.Append(",\"beavers\":").Append(beavers.Length);
-
-            int hungry = 0, thirsty = 0, homeless = 0;
-            foreach (var b in beavers)
+            Section(sb, errors, "hazard", () =>
             {
-                if (GameAccess.FloatOf(GameAccess.MemberAny(b, "Hunger", "FoodLevel"), 1f) < 0.3f) hungry++;
-                if (GameAccess.FloatOf(GameAccess.MemberAny(b, "Thirst", "WaterLevel"), 1f) < 0.3f) thirsty++;
-                if (GameAccess.MemberAny(b, "Dwelling", "Home") == null) homeless++;
-            }
-            sb.Append(",\"hungry\":").Append(hungry)
-              .Append(",\"thirsty\":").Append(thirsty)
-              .Append(",\"homeless\":").Append(homeless);
+                var current = svc.Hazard.CurrentCycleHazardousWeather;
+                sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "none" : current.GetType().Name))
+                  .Append(",\"hazard_duration_days\":").Append(svc.Hazard.HazardousWeatherDuration)
+                  .Append(",\"hazard_days_total\":").Append(svc.Hazard.DurationInDays);
+            });
 
-            Mark("population");
-
-            // --- stored goods ---------------------------------------------------
-            var totals = new Dictionary<string, int>();
-            foreach (var inv in GameAccess.FindAll("inventory"))
+            Section(sb, errors, "beavers", () =>
             {
-                var stock = GameAccess.MemberAny(inv, "Stock", "Goods", "Amounts");
-                foreach (var entry in GameAccess.Enumerate(stock))
+                sb.Append(",\"beavers\":").Append(svc.Beavers.NumberOfBeavers)
+                  .Append(",\"adults\":").Append(svc.Beavers.NumberOfAdults)
+                  .Append(",\"children\":").Append(svc.Beavers.NumberOfChildren);
+            });
+
+            Section(sb, errors, "entities", () =>
+            {
+                var counts = new Dictionary<string, int>();
+                int seen = 0;
+                foreach (var entity in GameAccess.Enumerate(svc.Entities.Entities))
                 {
-                    var good = GameAccess.MemberAny(entry, "GoodId", "Id", "Key") as string;
-                    if (good == null) continue;
-                    int amount = GameAccess.IntOf(GameAccess.MemberAny(entry, "Amount", "Value", "Count"));
-                    totals[good] = totals.TryGetValue(good, out var prior) ? prior + amount : amount;
+                    if (++seen > MaxEntities) break;
+                    var name = EntityName(entity);
+                    counts[name] = counts.TryGetValue(name, out var prior) ? prior + 1 : 1;
                 }
-            }
-            if (totals.Count == 0) unresolved.Add("inventory");
 
-            sb.Append(",\"goods\":{").Append(string.Join(",", totals
-                .OrderByDescending(kv => kv.Value)
-                .Select(kv => $"{Json.Str(kv.Key)}:{kv.Value}"))).Append('}');
+                sb.Append(",\"entity_total\":").Append(Math.Min(seen, MaxEntities))
+                  .Append(",\"entities\":{")
+                  .Append(string.Join(",", counts.OrderByDescending(kv => kv.Value)
+                      .Select(kv => Json.Str(kv.Key) + ":" + kv.Value)))
+                  .Append('}');
+            });
 
-            Mark("goods");
-
-            // --- buildings ------------------------------------------------------
-            var byKind = new Dictionary<string, int>();
-            foreach (var b in GameAccess.FindAll("building"))
+            // Members not yet confirmed: dump their readable properties so the real
+            // names show up in /state without another lookup round.
+            Section(sb, errors, "raw", () =>
             {
-                var name = GameAccess.MemberAny(b, "PrefabName", "Name", "Id") as string ?? "unknown";
-                byKind[name] = byKind.TryGetValue(name, out var prior) ? prior + 1 : 1;
-            }
-            if (byKind.Count == 0) unresolved.Add("building");
+                sb.Append(",\"raw\":{")
+                  .Append("\"weather_service\":").Append(Describer.Describe(svc.Weather)).Append(',')
+                  .Append("\"speed_manager\":").Append(Describer.Describe(svc.Speed)).Append(',')
+                  .Append("\"hazard_service\":").Append(Describer.Describe(svc.Hazard))
+                  .Append('}');
+            });
 
-            sb.Append(",\"buildings\":{").Append(string.Join(",", byKind
-                .OrderByDescending(kv => kv.Value)
-                .Select(kv => $"{Json.Str(kv.Key)}:{kv.Value}"))).Append('}');
-
-            Mark("buildings");
-
-            // Surfaced so the agent can report a broken binding instead of
-            // silently reasoning over zeros after a game update.
-            sb.Append(",\"unresolved_bindings\":[")
-              .Append(string.Join(",", unresolved.Select(Json.Str)))
-              .Append(']');
-
+            sb.Append(",\"errors\":[").Append(string.Join(",", errors.Select(Json.Str))).Append(']');
             return sb.Append('}').ToString();
+        }
+
+        private static void Section(StringBuilder sb, List<string> errors, string name, Action body)
+        {
+            var mark = sb.Length;
+            try { body(); }
+            catch (Exception e)
+            {
+                sb.Length = mark; // drop any half-written fragment from this section
+                errors.Add(name + ": " + e.GetType().Name + ": " + e.Message);
+                Debug.Log("[TimberbornAI] state section '" + name + "' failed: " + e);
+            }
+        }
+
+        /// <summary>Best-effort readable name for an entity, whatever its component type exposes.</summary>
+        private static string EntityName(object entity)
+        {
+            if (entity == null) return "null";
+
+            var name = GameAccess.MemberAny(entity, "TemplateName", "PrefabName", "Name") as string;
+
+            if (string.IsNullOrEmpty(name))
+            {
+                var go = GameAccess.MemberAny(entity, "GameObject", "gameObject") as GameObject;
+                if (go != null) name = go.name;
+            }
+
+            if (string.IsNullOrEmpty(name)) name = entity.GetType().Name;
+
+            const string clone = "(Clone)";
+            return name.EndsWith(clone, StringComparison.Ordinal) ? name.Substring(0, name.Length - clone.Length) : name;
         }
     }
 }

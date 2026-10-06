@@ -78,8 +78,9 @@ You receive a world snapshot each turn and act through tools. Rules:
 - Prefer one clear decision per turn over scattering buildings.
 - Droughts are the real clock. Water and food storage ahead of a drought beat
   any expansion.
-- If `unresolved_bindings` is non-empty, that data is missing rather than zero.
-  Say so in your note instead of reasoning over it.
+- If `in_game` is false, no save is loaded: do not issue commands.
+- If `errors` is non-empty, those sections are missing rather than zero. Say so
+  in your note instead of reasoning over them.
 - Commands can fail. Read the result and adapt; do not reissue a command that
   just returned ok=false for the same reason.
 """
@@ -110,8 +111,8 @@ def run(goal_text, interval, max_turns):
 
         state = call_mod("/state")
         if not state.get("error"):
-            print(f"[turn {turn}] cycle {state.get('cycle')} "
-                  f"beavers {state.get('beavers')} goods {len(state.get('goods', {}))}")
+            print(f"[turn {turn}] cycle {state.get('cycle')} day {state.get('cycle_day')} "
+                  f"beavers {state.get('beavers')} entities {state.get('entity_total')}")
         else:
             print(f"[turn {turn}] {state['error']}", file=sys.stderr)
 

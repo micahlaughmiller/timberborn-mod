@@ -19,30 +19,13 @@
     <GameManaged Condition="'$(GameManaged)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed</GameManaged>
   </PropertyGroup>
 
+  <!-- Reference every game assembly we might touch. Compiling against one DLL at a
+       time meant a CS0012 "assembly not referenced" error per missing module. -->
   <ItemGroup>
-    <Reference Include="UnityEngine">
-      <HintPath>$(GameManaged)\UnityEngine.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>$(GameManaged)\UnityEngine.IMGUIModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>$(GameManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <!-- Game assemblies that define the IModStarter entry point contract. -->
-    <Reference Include="Timberborn.ModManagerScene">
-      <HintPath>$(GameManaged)\Timberborn.ModManagerScene.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Timberborn.Modding">
-      <HintPath>$(GameManaged)\Timberborn.Modding.dll</HintPath>
+    <GameReference Include="$(GameManaged)\Timberborn.*.dll" />
+    <GameReference Include="$(GameManaged)\Bindito.*.dll" />
+    <GameReference Include="$(GameManaged)\UnityEngine*.dll" />
+    <Reference Include="@(GameReference)">
       <Private>false</Private>
     </Reference>
   </ItemGroup>
