@@ -17,6 +17,7 @@ namespace TimberbornAI
     internal static class StateReader
     {
         private const int MaxEntities = 20000;
+        private const int MaxEntityKinds = 40;
 
         public static string Snapshot()
         {
@@ -38,8 +39,23 @@ namespace TimberbornAI
             {
                 var current = svc.Hazard.CurrentCycleHazardousWeather;
                 sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "none" : current.GetType().Name))
-                  .Append(",\"hazard_duration_days\":").Append(svc.Hazard.HazardousWeatherDuration)
-                  .Append(",\"hazard_days_total\":").Append(svc.Hazard.DurationInDays);
+                  .Append(",\"hazard_duration_days\":").Append(svc.Hazard.HazardousWeatherDuration);
+
+                // Countdown to the next hazard. cycle_progress is the day number
+                // within the cycle including the fraction, same scale as the start day.
+                var startDay = GameAccess.IntOf(GameAccess.Member(svc.Weather, "HazardousWeatherStartCycleDay"));
+                var cycleLength = GameAccess.IntOf(GameAccess.Member(svc.Weather, "CycleLengthInDays"));
+                var activeNow = GameAccess.Member(svc.Weather, "IsHazardousWeather") is bool b && b;
+                var progress = svc.Cycle.PartialCycleDay;
+                var duration = svc.Hazard.HazardousWeatherDuration;
+
+                var untilStart = Math.Max(0f, startDay - progress);
+                var untilEnd = Math.Max(0f, startDay + duration - progress);
+
+                sb.Append(",\"hazard_active\":").Append(activeNow ? "true" : "false")
+                  .Append(",\"days_until_hazard\":").Append(Num(activeNow ? 0f : untilStart))
+                  .Append(",\"hazard_days_left\":").Append(Num(activeNow ? untilEnd : 0f))
+                  .Append(",\"cycle_length_days\":").Append(cycleLength);
             });
 
             Section(sb, errors, "beavers", () =>
@@ -56,13 +72,14 @@ namespace TimberbornAI
                 foreach (var entity in GameAccess.Enumerate(svc.Entities.Entities))
                 {
                     if (++seen > MaxEntities) break;
-                    var name = EntityName(entity);
+                    var name = Collapse(EntityName(entity));
                     counts[name] = counts.TryGetValue(name, out var prior) ? prior + 1 : 1;
                 }
 
                 sb.Append(",\"entity_total\":").Append(Math.Min(seen, MaxEntities))
                   .Append(",\"entities\":{")
                   .Append(string.Join(",", counts.OrderByDescending(kv => kv.Value)
+                      .Take(MaxEntityKinds)
                       .Select(kv => Json.Str(kv.Key) + ":" + kv.Value)))
                   .Append('}');
             });
@@ -92,6 +109,15 @@ namespace TimberbornAI
                 errors.Add(name + ": " + e.GetType().Name + ": " + e.Message);
                 Debug.Log("[TimberbornAI] state section '" + name + "' failed: " + e);
             }
+        }
+
+        private static string Num(float v) => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>"BeaverAdult Alzim" and "BeaverChild Azibo" count as one kind each, not one entry per beaver.</summary>
+        private static string Collapse(string name)
+        {
+            var space = name.IndexOf(' ');
+            return space > 0 && name.StartsWith("Beaver", StringComparison.Ordinal) ? name.Substring(0, space) : name;
         }
 
         /// <summary>Best-effort readable name for an entity, whatever its component type exposes.</summary>
