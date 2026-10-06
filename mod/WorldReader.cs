@@ -125,9 +125,13 @@ namespace TimberbornAI
             var world = World();
 
             var goodIds = new List<string>();
+            object goodSample = null;
+            int goodCount = 0;
             foreach (var good in GameAccess.Enumerate(world.Goods.Goods))
             {
-                var id = GameAccess.MemberAny(good, "Id") as string;
+                goodSample = goodSample ?? good;
+                goodCount++;
+                var id = GameAccess.MemberAny(good, "Id", "GoodId", "GoodID", "Key", "Name") as string;
                 if (id != null) goodIds.Add(id);
             }
 
@@ -164,6 +168,12 @@ namespace TimberbornAI
                 "\"_goods_checked\":" + goodIds.Count,
                 "\"_districts_counted\":" + districtsCounted
             };
+            if (goodIds.Count == 0)
+            {
+                all.Add("\"_good_count\":" + goodCount);
+                all.Add("\"_good_sample_type\":" + Json.Str(goodSample == null ? null : goodSample.GetType().FullName));
+                all.Add("\"_good_sample\":" + Describer.Describe(goodSample));
+            }
             all.AddRange(entries);
             return "{" + string.Join(",", all) + "}";
         }
@@ -235,7 +245,12 @@ namespace TimberbornAI
                 waterRows.Add(Json.Str(wr.ToString()));
             }
 
-            return "{\"origin\":{\"x\":" + x0 + ",\"y\":" + y0 + "},\"width\":" + w + ",\"height\":" + h
+            int centerSurface = -1;
+            foreach (var level in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(cx, cy))))
+                centerSurface = Math.Max(centerSurface, HeightOf(level));
+
+            return "{\"center\":{\"x\":" + cx + ",\"y\":" + cy + ",\"surface_z\":" + centerSurface + "}"
+                 + ",\"origin\":{\"x\":" + x0 + ",\"y\":" + y0 + "},\"width\":" + w + ",\"height\":" + h
                  + ",\"map_size\":{\"x\":" + size.x + ",\"y\":" + size.y + ",\"z\":" + size.z + "}"
                  + ",\"height_element_type\":" + Json.Str(heightType)
                  + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~\""
@@ -252,6 +267,7 @@ namespace TimberbornAI
         private static int HeightOf(object level)
         {
             if (level == null) return -1;
+            if (level is Vector3Int cell) return cell.z + 1; // top terrain cell z, +1 = walkable surface level
             if (level is int i) return i;
             if (level is IConvertible && !(level is string))
             {
@@ -294,11 +310,26 @@ namespace TimberbornAI
 
                 if (!all && !unlocked) continue;
                 items.Add("{\"name\":" + Json.Str(name) + ",\"unlocked\":" + (unlocked ? "true" : "false")
-                        + ",\"unlockable\":" + (unlockable ? "true" : "false") + "}");
+                        + ",\"unlockable\":" + (unlockable ? "true" : "false")
+                        + ",\"science_cost\":" + GameAccess.IntOf(GameAccess.Member(spec, "ScienceCost"))
+                        + ",\"cost\":" + Cost(spec) + "}");
             }
 
             return "{\"science_points\":" + build.Science.SciencePoints + ",\"count\":" + items.Count
                  + ",\"buildings\":[" + string.Join(",", items) + "]}";
+        }
+
+        /// <summary>BuildingSpec.BuildingCost as a JSON list of readable GoodAmountSpec values.</summary>
+        private static string Cost(object spec)
+        {
+            try
+            {
+                var parts = new List<string>();
+                foreach (var amount in GameAccess.Enumerate(GameAccess.Member(spec, "BuildingCost")))
+                    parts.Add(Describer.Describe(amount));
+                return "[" + string.Join(",", parts) + "]";
+            }
+            catch { return "[]"; }
         }
 
         private static int Int(NameValueCollection q, string key, int fallback)

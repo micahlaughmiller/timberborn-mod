@@ -5,6 +5,7 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\find-types.ps1 -Pattern "^WeatherService$" -Members
 #
 # -Pattern  regex matched against the simple type name (case-insensitive)
+# -Nested   include nested types (e.g. EntitySetup+Builder); compiler-generated ones stay hidden
 # -Full     with -Members, print fully qualified type names for parameters and returns
 # -Members  also list constructors, properties, fields and methods of each match
 # Output is printed and saved to tools\find-types-out.txt
@@ -13,6 +14,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Pattern,
     [switch]$Members,
     [switch]$Full,
+    [switch]$Nested,
     [string]$ManagedDir = 'C:\Program Files (x86)\Steam\steamapps\common\Timberborn\Timberborn_Data\Managed'
 )
 
@@ -38,7 +40,7 @@ foreach ($file in $files) {
     catch [Reflection.ReflectionTypeLoadException] { $types = $_.Exception.Types | Where-Object { $_ -ne $null } }
     catch { continue }
 
-    foreach ($t in ($types | Where-Object { $_.Name -match $Pattern -and $_.FullName -notmatch '[<+]' } | Sort-Object FullName)) {
+    foreach ($t in ($types | Where-Object { $_.Name -match $Pattern -and $_.FullName -notmatch '<' -and ($Nested -or $_.FullName -notmatch '[+]') } | Sort-Object FullName)) {
         $kind = if ($t.IsInterface) { 'interface' } elseif ($t.IsEnum) { 'enum' } elseif ($t.IsAbstract) { 'abstract class' } else { 'class' }
         Emit ($kind + ' ' + $t.FullName + '   [' + $file.Name + ']')
 
