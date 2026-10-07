@@ -122,14 +122,14 @@ namespace TimberbornAI
         private static string Num(float v) => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>"BeaverAdult Alzim" and "BeaverChild Azibo" count as one kind each, not one entry per beaver.</summary>
-        private static string Collapse(string name)
+        internal static string Collapse(string name)
         {
             var space = name.IndexOf(' ');
             return space > 0 && name.StartsWith("Beaver", StringComparison.Ordinal) ? name.Substring(0, space) : name;
         }
 
         /// <summary>Best-effort readable name for an entity, whatever its component type exposes.</summary>
-        private static string EntityName(object entity)
+        internal static string EntityName(object entity)
         {
             if (entity == null) return "null";
 

@@ -77,6 +77,27 @@ TOOLS = [
         },
     },
     {
+        "name": "build_path",
+        "description": (
+            "Lay Path tiles along an L-shaped route from (x1,y1) to (x2,y2): horizontally along y1 "
+            "to x2, then vertically along x2 to y2. Beavers can only walk and haul along paths, so "
+            "every building needs one connecting it to the district center. Tiles blocked by trees, "
+            "buildings or water are listed in blocked_or_existing (an already-built path tile also "
+            "shows there); route around real obstacles with a second call. Max 150 tiles."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x1": {"type": "integer"},
+                "y1": {"type": "integer"},
+                "x2": {"type": "integer"},
+                "y2": {"type": "integer"},
+                "dry_run": {"type": "boolean"},
+            },
+            "required": ["x1", "y1", "x2", "y2"],
+        },
+    },
+    {
         "name": "set_speed",
         "description": "Set game speed. 0 pauses, 1 is normal, 3 is fast, up to 7.",
         "input_schema": {
@@ -111,6 +132,16 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
 - Look before you build. Use `get_map` to find open, flat ground and `get_buildings` for costs.
   Check a spot with build(dry_run=true) before committing. Heights in the map are surface levels:
   a building needs every cell it covers to be the same level, free of trees and other buildings.
+- get_map also returns an `objects` grid: a letter per cell naming what stands there (trees, berry
+  bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
+  flag only helps if there are trees close to it, and a gatherer flag only if there are berry bushes
+  close to it. Check the grid; do not guess where the trees are.
+- Beavers walk and haul along paths. A building with no path to the district center will never be
+  built or worked. After placing anything, connect it with build_path, and check the reply: if it lists
+  blocked tiles, route around them with another build_path call.
+- A lumberjack flag only sends beavers to trees inside an area that has been marked for cutting.
+  Marking cutting areas is not available to you yet, so do not expect logs from lumberjack flags
+  alone. Say so in your note rather than waiting on logs that cannot come.
 - A placed building is only a construction site. Beavers build it after the materials are delivered
   from storage, so make sure the district actually has those goods (see `stock`), and that
   storage and a path connect to it.

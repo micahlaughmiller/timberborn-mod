@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Timberborn.BlockSystem;
 using Timberborn.BlueprintSystem;
 using Timberborn.Coordinates;
@@ -109,6 +110,49 @@ namespace TimberbornAI
                 var root = Root(e);
                 return Fail("game refused to create " + prefab + ": " + root.GetType().Name + ": " + root.Message);
             }
+        }
+
+        private const int MaxPathTiles = 150;
+
+        /// <summary>
+        /// Lays Path tiles along an L-shaped route: horizontally from (x1,y1) to (x2,y1), then
+        /// vertically to (x2,y2). Each tile goes through the normal placement checks. Tiles that
+        /// cannot be placed (trees, buildings, water, or an existing path) are listed so the
+        /// caller can route around them. dry_run=true only reports.
+        /// </summary>
+        public static string PlacePath(string body)
+        {
+            int x1 = Json.Int(body, "x1", int.MinValue), y1 = Json.Int(body, "y1", int.MinValue);
+            int x2 = Json.Int(body, "x2", int.MinValue), y2 = Json.Int(body, "y2", int.MinValue);
+            if (x1 == int.MinValue || y1 == int.MinValue || x2 == int.MinValue || y2 == int.MinValue)
+                return Fail("build_path requires x1, y1, x2 and y2");
+
+            var tiles = new List<int[]>();
+            int stepX = x2 >= x1 ? 1 : -1;
+            for (int x = x1; x != x2 + stepX; x += stepX) tiles.Add(new[] { x, y1 });
+
+            int stepY = y2 >= y1 ? 1 : -1;
+            for (int y = y1 + stepY; y != y2 + stepY && y1 != y2; y += stepY) tiles.Add(new[] { x2, y });
+
+            if (tiles.Count > MaxPathTiles)
+                return Fail("path is " + tiles.Count + " tiles long; the limit is " + MaxPathTiles + ". Build it in shorter pieces.");
+
+            bool dry = (Json.Field(body, "dry_run") ?? "false").ToLowerInvariant() == "true";
+            int placed = 0;
+            var blocked = new List<string>();
+
+            foreach (var tile in tiles)
+            {
+                var one = "{\"prefab\":\"Path\",\"x\":" + tile[0] + ",\"y\":" + tile[1] + (dry ? ",\"dry_run\":true" : "") + "}";
+                if (Json.Field(Place(one), "ok") == "true") placed++;
+                else blocked.Add("[" + tile[0] + "," + tile[1] + "]");
+            }
+
+            string verb = dry ? "could place" : "placed";
+            return "{\"ok\":" + (placed > 0 ? "true" : "false")
+                 + ",\"detail\":" + Json.Str(verb + " " + placed + " of " + tiles.Count + " path tiles from (" + x1 + "," + y1 + ") to (" + x2 + "," + y2 + ")")
+                 + ",\"complete\":" + (blocked.Count == 0 ? "true" : "false")
+                 + ",\"blocked_or_existing\":[" + string.Join(",", blocked.Take(30)) + "]}";
         }
 
         /// <summary>

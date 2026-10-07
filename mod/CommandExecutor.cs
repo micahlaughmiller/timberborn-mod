@@ -21,6 +21,7 @@ namespace TimberbornAI
             switch (action)
             {
                 case "build":       return Placer.Place(body);
+                case "build_path":  return Placer.PlacePath(body);
                 case "set_speed":   return SetSpeed(body);
                 case "pause":       return SetSpeed("{\"speed\":0}");
                 case "note":        return OverlayPanel.SetNarration(body);

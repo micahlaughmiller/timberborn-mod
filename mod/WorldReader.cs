@@ -249,11 +249,20 @@ namespace TimberbornAI
             foreach (var level in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(cx, cy))))
                 centerSurface = Math.Max(centerSurface, HeightOf(level));
 
+            string objectsJson, legendJson;
+            try { ObjectLayer(x0, y0, w, h, out objectsJson, out legendJson); }
+            catch (Exception e)
+            {
+                objectsJson = "[]";
+                legendJson = "{\"error\":" + Json.Str(e.GetType().Name + ": " + e.Message) + "}";
+            }
+
             return "{\"center\":{\"x\":" + cx + ",\"y\":" + cy + ",\"surface_z\":" + centerSurface + "}"
+                 + ",\"objects\":" + objectsJson + ",\"object_legend\":" + legendJson
                  + ",\"origin\":{\"x\":" + x0 + ",\"y\":" + y0 + "},\"width\":" + w + ",\"height\":" + h
                  + ",\"map_size\":{\"x\":" + size.x + ",\"y\":" + size.y + ",\"z\":" + size.z + "}"
                  + ",\"height_element_type\":" + Json.Str(heightType)
-                 + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~\""
+                 + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~; objects: a letter per kind (see object_legend), . = nothing on the cell\""
                  + ",\"heights\":[" + string.Join(",", heightRows) + "]"
                  + ",\"water\":[" + string.Join(",", waterRows) + "]}";
         }
@@ -289,6 +298,91 @@ namespace TimberbornAI
 
             if (best != int.MinValue) return best;
             throw new InvalidOperationException("cannot read a height from " + level.GetType().FullName + " " + Describer.Describe(level));
+        }
+
+        private static readonly Dictionary<Type, MethodInfo> BlockObjectGetters = new Dictionary<Type, MethodInfo>();
+
+        /// <summary>Ground cell an entity stands on, from its BlockObject. False for things without one.</summary>
+        private static bool EntityCell(object entity, out Vector3Int cell)
+        {
+            cell = default(Vector3Int);
+            if (entity == null) return false;
+
+            object block = null;
+            try
+            {
+                var type = entity.GetType();
+                if (!BlockObjectGetters.TryGetValue(type, out var getter))
+                {
+                    getter = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                        .Where(m => m.Name == "GetComponent" && m.IsGenericMethodDefinition && m.GetParameters().Length == 0)
+                        .Select(m => m.MakeGenericMethod(typeof(Timberborn.BlockSystem.BlockObject)))
+                        .FirstOrDefault();
+                    BlockObjectGetters[type] = getter;
+                }
+
+                block = getter != null ? getter.Invoke(entity, null) : null;
+            }
+            catch { block = null; } // GetComponent throws for entities with no BlockObject
+
+            if (block == null) block = Components.Get(entity, typeof(Timberborn.BlockSystem.BlockObject));
+            var blockObject = block as Timberborn.BlockSystem.BlockObject;
+            if (blockObject == null) return false;
+
+            cell = blockObject.Coordinates;
+            return true;
+        }
+
+        /// <summary>
+        /// What stands on each cell of the window: trees, bushes, ruins, buildings. One letter
+        /// per kind, most common first, with a legend. Beavers are skipped (they move).
+        /// Only the cell a multi-cell building is anchored on is marked.
+        /// </summary>
+        private static void ObjectLayer(int x0, int y0, int w, int h, out string rowsJson, out string legendJson)
+        {
+            var core = AIGameServices.Instance;
+            if (core == null) throw new InvalidOperationException("game services not bound");
+
+            var cells = new Dictionary<long, string>();
+            var counts = new Dictionary<string, int>();
+
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var kind = StateReader.Collapse(StateReader.EntityName(entity));
+                if (kind.StartsWith("Beaver", StringComparison.Ordinal)) continue;
+                if (!EntityCell(entity, out var c)) continue;
+                if (c.x < x0 || c.x >= x0 + w || c.y < y0 || c.y >= y0 + h) continue;
+
+                cells[(long)c.y * 100000L + c.x] = kind;
+                counts[kind] = counts.TryGetValue(kind, out var prior) ? prior + 1 : 1;
+            }
+
+            const string letters = "abcdefghijklmnopqrstuvwxyz";
+            var letterFor = new Dictionary<string, char>();
+            var legend = new List<string>();
+            foreach (var kv in counts.OrderByDescending(k => k.Value))
+            {
+                if (letterFor.Count >= letters.Length) break;
+                var letter = letters[letterFor.Count];
+                letterFor[kv.Key] = letter;
+                legend.Add(Json.Str(letter.ToString()) + ":" + Json.Str(kv.Key + " x" + kv.Value));
+            }
+
+            var rows = new List<string>();
+            for (int y = y0; y < y0 + h; y++)
+            {
+                var row = new StringBuilder();
+                for (int x = x0; x < x0 + w; x++)
+                {
+                    row.Append(cells.TryGetValue((long)y * 100000L + x, out var kind)
+                        ? (letterFor.TryGetValue(kind, out var ch) ? ch : '*')
+                        : '.');
+                }
+                rows.Add(Json.Str(row.ToString()));
+            }
+
+            rowsJson = "[" + string.Join(",", rows) + "]";
+            legendJson = "{" + string.Join(",", legend) + "}";
         }
 
         /// <summary>Building templates with unlock state. Unlocked only unless all=1.</summary>
