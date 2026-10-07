@@ -131,7 +131,7 @@ namespace TimberbornAI
             {
                 goodSample = goodSample ?? good;
                 goodCount++;
-                var id = GameAccess.MemberAny(good, "Id", "GoodId", "GoodID", "Key", "Name") as string;
+                var id = good as string ?? GameAccess.MemberAny(good, "Id", "GoodId", "GoodID", "Key", "Name") as string; // IGoodService.Goods is a list of id strings
                 if (id != null) goodIds.Add(id);
             }
 
