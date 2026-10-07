@@ -246,7 +246,12 @@ def main():
     if probe.get("error"):
         sys.exit(f"Mod not reachable. Is the game running with the mod loaded?\n{probe['error']}")
 
-    client = anthropic.Anthropic()
+    # A key that is not scoped to a workspace must say which workspace to use.
+    headers = {}
+    workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+    if workspace:
+        headers["anthropic-workspace-id"] = workspace
+    client = anthropic.Anthropic(default_headers=headers or None)
     goal_message = {
         "role": "user",
         "content": "Your objective for this playthrough:\n\n" + goal_text + "\n\n" + bootstrap_context(),
@@ -260,6 +265,10 @@ def main():
             try:
                 finished = play_turn(client, args.model, SYSTEM, goal_message, turns, turn_no, not args.quiet)
             except anthropic.APIStatusError as exc:
+                # 400/401/403/404 mean the request itself is wrong (bad key, workspace,
+                # model id). Retrying cannot fix that, so stop and say why.
+                if exc.status_code in (400, 401, 403, 404):
+                    sys.exit(f"API rejected the request ({exc.status_code}): {exc.message}")
                 print(f"[turn {turn_no}] API error {exc.status_code}: {exc.message}; retrying after a pause", file=sys.stderr)
                 time.sleep(20)
                 continue
