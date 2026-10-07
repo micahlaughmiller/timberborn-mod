@@ -10,6 +10,7 @@ using Timberborn.ConstructionSites;
 using Timberborn.BlockObjectTools;
 using Timberborn.Buildings;
 using Timberborn.EntitySystem;
+using Timberborn.Forestry;
 using Timberborn.GameCycleSystem;
 using Timberborn.GameDistricts;
 using Timberborn.Goods;
@@ -54,6 +55,9 @@ namespace TimberbornAI
 
             if (Flags.Has("no-build.flag")) Debug.Log("[TimberbornAI] no-build.flag present: build services not bound");
             else Bind<AIBuildServices>().AsSingleton();
+
+            if (Flags.Has("no-forestry.flag")) Debug.Log("[TimberbornAI] no-forestry.flag present: forestry services not bound");
+            else Bind<AIForestryServices>().AsSingleton();
         }
     }
 
@@ -167,6 +171,25 @@ namespace TimberbornAI
         {
             Instance = this;
             Debug.Log("[TimberbornAI] build services bound");
+        }
+    }
+
+    /// <summary>The game's global tree-cutting area: cells marked here are cut by lumberjacks.</summary>
+    public class AIForestryServices : ILoadableSingleton
+    {
+        public static AIForestryServices Instance { get; private set; }
+
+        public readonly TreeCuttingArea Area;
+
+        public AIForestryServices(TreeCuttingArea area)
+        {
+            Area = area;
+        }
+
+        public void Load()
+        {
+            Instance = this;
+            Debug.Log("[TimberbornAI] forestry services bound");
         }
     }
 

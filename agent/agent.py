@@ -98,6 +98,38 @@ TOOLS = [
         },
     },
     {
+        "name": "mark_trees",
+        "description": (
+            "Mark a rectangle (corners x1,y1 and x2,y2, each side at most 40 cells) for tree cutting. "
+            "Lumberjack flags only cut trees inside marked areas. Find trees with get_map's objects "
+            "grid. The reply reports how many marked cells actually have trees on them."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x1": {"type": "integer"},
+                "y1": {"type": "integer"},
+                "x2": {"type": "integer"},
+                "y2": {"type": "integer"},
+            },
+            "required": ["x1", "y1", "x2", "y2"],
+        },
+    },
+    {
+        "name": "unmark_trees",
+        "description": "Remove a rectangle from the tree-cutting area, for example to protect trees you want to keep.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x1": {"type": "integer"},
+                "y1": {"type": "integer"},
+                "x2": {"type": "integer"},
+                "y2": {"type": "integer"},
+            },
+            "required": ["x1", "y1", "x2", "y2"],
+        },
+    },
+    {
         "name": "set_speed",
         "description": "Set game speed. 0 pauses, 1 is normal, 3 is fast, up to 7.",
         "input_schema": {
@@ -139,9 +171,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
 - Beavers walk and haul along paths. A building with no path to the district center will never be
   built or worked. After placing anything, connect it with build_path, and check the reply: if it lists
   blocked tiles, route around them with another build_path call.
-- A lumberjack flag only sends beavers to trees inside an area that has been marked for cutting.
-  Marking cutting areas is not available to you yet, so do not expect logs from lumberjack flags
-  alone. Say so in your note rather than waiting on logs that cannot come.
+- A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
+  is not enough: call mark_trees on a rectangle of trees close to the flag (the reply says how many
+  of the marked cells have trees; if that is 0 you picked bare ground). Keep the marked area near
+  the flag and connected by path, or the lumberjacks walk too far to be useful.
 - A placed building is only a construction site. Beavers build it after the materials are delivered
   from storage, so make sure the district actually has those goods (see `stock`), and that
   storage and a path connect to it.
