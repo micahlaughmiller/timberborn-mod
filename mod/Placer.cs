@@ -96,16 +96,12 @@ namespace TimberbornAI
             try
             {
                 var builder = new EntitySetup.Builder(blueprint);
-                // Always a construction site that beavers must build, as with a human click.
-                // PlaceFinished templates (Path) are only created complete when the caller
-                // explicitly asks with "instant":true.
-                bool instant = (Json.Field(body, "instant") ?? "false").ToLowerInvariant() == "true";
-                bool finished = instant && GameAccess.Member(spec, "PlaceFinished") is bool f && f;
+                bool finished = GameAccess.Member(spec, "PlaceFinished") is bool f && f;
                 var created = finished
                     ? build.Construction.CreateAsFinished(builder, placement)
                     : build.Construction.CreateAsUnfinished(builder, placement);
 
-                return Ok((finished ? "placed instantly: " : "queued construction site for beavers: ") + prefab + " at " + x + "," + y + "," + z
+                return Ok((finished ? "placed " : "queued ") + prefab + " at " + x + "," + y + "," + z
                           + " facing " + orientation + (created == null ? "" : " (entity created)"));
             }
             catch (Exception e)
