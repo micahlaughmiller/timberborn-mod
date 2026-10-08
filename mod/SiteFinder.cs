@@ -112,6 +112,7 @@ namespace TimberbornAI
             // (or to_x/to_y if given). Choosing the facing by actual walk, not by straight-line
             // direction, accounts for trees, water and cliffs that make a short line a long walk.
             Dictionary<long, int> walk = null;
+            Dictionary<long, int> costs = null; // new path tiles needed to connect each cell
             int toX, toY;
             bool haveTarget = WorldReader.DistrictDoorstep(out toX, out toY);
             toX = Json.Int(body, "to_x", toX);
@@ -121,7 +122,10 @@ namespace TimberbornAI
                 int fx0 = Math.Max(0, Math.Min(x0, toX) - 8), fx1 = Math.Min(size.x - 1, Math.Max(x0 + w, toX) + 8);
                 int fy0 = Math.Max(0, Math.Min(y0, toY) - 8), fy1 = Math.Min(size.y - 1, Math.Max(y0 + h, toY) + 8);
                 if (fx1 - fx0 + 1 <= 110 && fy1 - fy0 + 1 <= 110)
+                {
                     walk = Connector.WalkingDistances(build, world, toX, toY, fx0, fx1, fy0, fy1);
+                    costs = Connector.WalkingDistances(build, world, toX, toY, fx0, fx1, fy0, fy1, true);
+                }
             }
 
             var passing = new List<Candidate>();
@@ -148,9 +152,12 @@ namespace TimberbornAI
                 if (hasDoor && walk != null)
                 {
                     // A door that opens onto ground nothing can cross cannot be connected at all.
-                    if (!walk.TryGetValue(Connector.Key(doorstep.x, doorstep.y), out var steps)) continue;
-                    c.DoorDistance = steps;
+                    long doorKey = Connector.Key(doorstep.x, doorstep.y);
+                    if (!walk.TryGetValue(doorKey, out var steps)) continue;
                     c.Walk = steps;
+                    c.NewTiles = costs != null && costs.TryGetValue(doorKey, out var needed) ? needed : steps;
+                    // Fewest new path tiles first (so buildings line up along existing roads), then shortest walk.
+                    c.DoorDistance = c.NewTiles * 1000 + steps;
                 }
                 else if (!hasDoor && walk != null)
                 {
@@ -160,6 +167,9 @@ namespace TimberbornAI
                     int best = ReachSteps(walk, c.X, c.Y);
                     if (best < 0) continue;
                     c.Walk = best;
+                    int bestTiles = costs != null ? ReachSteps(costs, c.X, c.Y) : best;
+                    c.NewTiles = bestTiles < 0 ? best : bestTiles;
+                    c.DoorDistance = c.NewTiles * 1000 + best;
                 }
                 passing.Add(c);
                 cellsSeen.Add(cellKey);
@@ -168,7 +178,7 @@ namespace TimberbornAI
             var good = passing
                 .GroupBy(c => ((long)c.Y * 100000L + c.X) * 100L + c.Z)
                 .Select(g => g.OrderBy(c => c.DoorDistance).First())
-                .OrderBy(c => c.Distance).ThenBy(c => c.DoorDistance)
+                .OrderBy(c => c.Distance + c.NewTiles).ThenBy(c => c.DoorDistance)
                 .Take(wanted)
                 .ToList();
 
@@ -176,7 +186,7 @@ namespace TimberbornAI
                                          + ",\"orientation\":" + Json.Str(c.Orientation.ToString())
                                          + ",\"distance\":" + c.Distance
                                          + (c.HasDoor && c.Walk >= 0 ? ",\"doorstep\":{\"x\":" + c.DoorX + ",\"y\":" + c.DoorY + "}" : "")
-                                         + (c.Walk >= 0 ? ",\"walk_steps_to_settlement\":" + c.Walk : "")
+                                         + (c.Walk >= 0 ? ",\"walk_steps_to_settlement\":" + c.Walk + ",\"new_path_tiles\":" + c.NewTiles : "")
                                          + "}");
 
             return "{\"ok\":true,\"prefab\":" + Json.Str(prefab)
@@ -273,6 +283,7 @@ namespace TimberbornAI
         {
             public int X, Y, Z, Distance;
             public int DoorX, DoorY, DoorDistance;
+            public int NewTiles; // new path tiles needed to connect it to the settlement
             public int Walk = -1; // steps from the doorstep to the settlement, -1 if not computed
             public bool HasDoor;
             public Orientation Orientation;

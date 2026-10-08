@@ -230,7 +230,8 @@ namespace TimberbornAI
         /// is not walkable. One search serves any number of candidate doors.
         /// </summary>
         internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
-                                                               int tx, int ty, int minX, int maxX, int minY, int maxY)
+                                                               int tx, int ty, int minX, int maxX, int minY, int maxY,
+                                                               bool costed = false)
         {
             if (!Placer.TryGetBlueprint(build, "Path", out var blueprint, out _)) return null;
             var pathSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
@@ -266,15 +267,28 @@ namespace TimberbornAI
 
             var dist = new Dictionary<long, int> { [Key(tx, ty)] = 0 };
             var bridges = SlopeBridges(world);
-            var queue = new Queue<long>();
-            queue.Enqueue(Key(tx, ty));
+
+            // Label-correcting search on a deque. By default every step costs 1, so the result is a walking
+            // distance in steps. In costed mode a step onto an existing path tile costs 0 and onto bare
+            // ground 1, so the result is how many NEW path tiles it would take to connect a cell, which is
+            // how a person extends a road. Improved labels are re-queued, so mixed step costs stay correct.
+            var queue = new LinkedList<long>();
+            queue.AddFirst(Key(tx, ty));
+
+            void Relax(long key, int cost, bool front)
+            {
+                if (dist.TryGetValue(key, out var old) && cost >= old) return;
+                dist[key] = cost;
+                if (front) queue.AddFirst(key); else queue.AddLast(key);
+            }
 
             int[] dx = { 1, -1, 0, 0 };
             int[] dy = { 0, 0, 1, -1 };
 
             while (queue.Count > 0)
             {
-                long current = queue.Dequeue();
+                long current = queue.First.Value;
+                queue.RemoveFirst();
                 int cx = (int)(current % 100000L), cy = (int)(current / 100000L);
                 int currentZ = Look(cx, cy).Z;
 
@@ -283,29 +297,26 @@ namespace TimberbornAI
                     int nx = cx + dx[i], ny = cy + dy[i];
                     if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
 
-                    long nextKey = Key(nx, ny);
-                    if (dist.ContainsKey(nextKey)) continue;
-
                     var next = Look(nx, ny);
                     if (!next.Passable || next.Z != currentZ) continue;
 
-                    dist[nextKey] = dist[current] + 1;
-                    queue.Enqueue(nextKey);
+                    int step = costed ? (next.Exists ? 0 : 1) : 1;
+                    Relax(Key(nx, ny), dist[current] + step, step == 0);
                 }
 
-                // A natural Slope joins two levels: crossing it costs two steps.
+                // A natural Slope joins two levels: crossing it costs two steps (or a new tile in costed mode).
                 if (bridges.TryGetValue(current, out var hops))
                 {
                     foreach (var target in hops)
                     {
-                        if (dist.ContainsKey(target)) continue;
-
                         int hx = (int)(target % 100000L), hy = (int)(target / 100000L);
                         if (hx < minX || hx > maxX || hy < minY || hy > maxY) continue;
-                        if (!Look(hx, hy).Passable) continue;
 
-                        dist[target] = dist[current] + 2;
-                        queue.Enqueue(target);
+                        var landing = Look(hx, hy);
+                        if (!landing.Passable) continue;
+
+                        int hop = costed ? (landing.Exists ? 0 : 1) : 2;
+                        Relax(target, dist[current] + hop, hop == 0);
                     }
                 }
             }
