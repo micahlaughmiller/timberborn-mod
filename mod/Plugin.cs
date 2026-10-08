@@ -178,6 +178,8 @@ namespace TimberbornAI
                 case "/map":       work = () => WorldReader.Map(query); break;
                 case "/buildings": work = () => WorldReader.Buildings(query); break;
                 case "/find":      work = () => WorldReader.Find(query); break;
+                case "/spec":      work = () => SpecReader.Inspect(query); break;
+                case "/specs":     work = () => SpecReader.OfType(query); break;
                 case "/ping":    work = () => "{\"ok\":true}"; break;
                 case "/state":   work = () => StateReader.Snapshot(query["debug"] == "1"); break;
                 case "/command": work = () => CommandExecutor.Execute(body); break;

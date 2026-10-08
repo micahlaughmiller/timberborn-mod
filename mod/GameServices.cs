@@ -247,7 +247,7 @@ namespace TimberbornAI
             => t.IsPrimitive || t.IsEnum || t == typeof(string)
                || t == typeof(Vector3Int) || t == typeof(Vector2Int) || t == typeof(Vector3) || t == typeof(Vector2);
 
-        private static string Value(object v)
+        internal static string Value(object v)
         {
             switch (v)
             {

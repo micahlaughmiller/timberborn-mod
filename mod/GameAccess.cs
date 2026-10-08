@@ -68,6 +68,13 @@ namespace TimberbornAI
             }
         }
 
+        /// <summary>A game type by simple name (for example NeedSpec), from the shared type index; null if none.</summary>
+        public static Type FindType(string simpleName)
+        {
+            EnsureIndex();
+            return _index != null && _index.TryGetValue(simpleName, out var found) ? found : null;
+        }
+
         /// <summary>Call from a background thread at startup so the first request isn't slow.</summary>
         public static void Warm() => EnsureIndex();
 

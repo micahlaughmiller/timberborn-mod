@@ -49,6 +49,36 @@ TOOLS = [
         },
     },
     {
+        "name": "inspect_building",
+        "description": (
+            "Read the game's own data for one building: every component spec, including how many workers it "
+            "takes, what it consumes and produces, capacities, ranges and costs. Use it before relying on any "
+            "assumption about what a building needs or gives, for example 'WaterPump.Folktails' or "
+            "'Inventor.Folktails'. Names come from get_buildings."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "inspect_specs",
+        "description": (
+            "Read every game spec of one type. Use type='NeedSpec' to learn what beavers need to survive and be "
+            "happy (water, food, shelter and so on, with how fast each need falls), and 'GoodSpec' for the goods. "
+            "Other spec type names work too if you know them."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "description": "for example NeedSpec"},
+                "max": {"type": "integer", "description": "how many to return, default 40"},
+            },
+            "required": ["type"],
+        },
+    },
+    {
         "name": "get_buildings",
         "description": "List building names you can build with their material and science costs.",
         "input_schema": {
@@ -297,6 +327,20 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   times and grow it before expanding. When the warning appears, use what time is left to top up
   storage and finish what protects the colony. Never state the date of the next hazard in your
   notes, because you do not know it.
+- BUILD ORDER. Follow this order, and do not skip ahead until each step is working (check `problems` and
+  your stock numbers to confirm):
+  1. LUMBERJACK FLAGS first. They are free. Put them on ground marked '#' in the `reachable` grid, right next to
+     trees that also touch '#' ground, mark those trees with mark_trees (pass the flag's access_cell as
+     from_x/from_y), and `connect` each flag to the district center. Two flags to begin with.
+  2. GATHERER FLAGS next. Also free. Put them beside berry bushes, `connect` them, then `set_gatherer` to Berries.
+  3. WATER PUMPS next, on the river bank where find_sites says (usually one level lower). Connect them. The first
+     12 logs you get go to a pump; water is what keeps the colony alive.
+  4. Then a SMALL WAREHOUSE (for berries and logs) and a SMALL TANK (to store water).
+  5. Then exactly ONE INVENTOR, for science. Never build a second.
+  6. Then expand only as needed: housing, more pumps, more food, using what the game's own data tells you.
+- LEARN THE RULES FROM THE GAME, do not guess them. Call inspect_building on a building before you rely on what it
+  needs or produces (workers, inputs, outputs, capacity), and call inspect_specs with type NeedSpec to learn what
+  beavers need to survive and be happy. Let that decide how much of each thing to build and in what order.
 - SURVIVAL COMES FIRST. Beavers drink water constantly and the starting water runs out within a day or
   two, after which they die. In the first game days your only goals are: (1) a lumberjack flag that is
   truly working, so logs arrive; (2) a water pump built with those logs, on the river bank. Do not spend
@@ -350,6 +394,11 @@ def run_tool(name, args):
         return call_mod("/map" + ("?" + query if query else ""))
     if name == "get_buildings":
         return call_mod("/buildings" + ("?all=1" if args.get("include_locked") else ""))
+    if name == "inspect_building":
+        return call_mod("/spec?" + urllib.parse.urlencode({"name": args.get("name", "")}))
+    if name == "inspect_specs":
+        query = urllib.parse.urlencode({k: v for k, v in args.items() if v is not None})
+        return call_mod("/specs?" + query)
     payload = dict(args)
     payload["action"] = name
     return call_mod("/command", payload)
