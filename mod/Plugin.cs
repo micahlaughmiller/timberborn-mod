@@ -178,7 +178,7 @@ namespace TimberbornAI
                 case "/map":       work = () => WorldReader.Map(query); break;
                 case "/buildings": work = () => WorldReader.Buildings(query); break;
                 case "/ping":    work = () => "{\"ok\":true}"; break;
-                case "/state":   work = () => StateReader.Snapshot(); break;
+                case "/state":   work = () => StateReader.Snapshot(query["debug"] == "1"); break;
                 case "/command": work = () => CommandExecutor.Execute(body); break;
                 case "/say":     work = () => OverlayPanel.SetNarration(body); break;
                 case "/dump":    work = () => TypeDump.Dump(); break;

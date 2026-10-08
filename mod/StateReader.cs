@@ -19,7 +19,7 @@ namespace TimberbornAI
         private const int MaxEntities = 20000;
         private const int MaxEntityKinds = 40;
 
-        public static string Snapshot()
+        public static string Snapshot(bool debug = false)
         {
             var svc = AIGameServices.Instance;
             if (svc == null)
@@ -37,25 +37,36 @@ namespace TimberbornAI
 
             Section(sb, errors, "hazard", () =>
             {
-                var current = svc.Hazard.CurrentCycleHazardousWeather;
-                sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "none" : current.GetType().Name))
-                  .Append(",\"hazard_duration_days\":").Append(svc.Hazard.HazardousWeatherDuration);
-
-                // Countdown to the next hazard. cycle_progress is the day number
-                // within the cycle including the fraction, same scale as the start day.
+                // A human player does not know when the next drought comes or what it will be,
+                // so the agent does not either. It only sees a hazard once it has started.
+                // The schedule is available for testing with /state?debug=1.
                 var startDay = GameAccess.IntOf(GameAccess.Member(svc.Weather, "HazardousWeatherStartCycleDay"));
                 var cycleLength = GameAccess.IntOf(GameAccess.Member(svc.Weather, "CycleLengthInDays"));
                 var activeNow = GameAccess.Member(svc.Weather, "IsHazardousWeather") is bool b && b;
-                var progress = svc.Cycle.PartialCycleDay;
+                var current = svc.Hazard.CurrentCycleHazardousWeather;
                 var duration = svc.Hazard.HazardousWeatherDuration;
 
+                // cycle_progress is the day number within the cycle including the fraction,
+                // the same scale as the start day.
+                var progress = svc.Cycle.PartialCycleDay;
                 var untilStart = Math.Max(0f, startDay - progress);
                 var untilEnd = Math.Max(0f, startDay + duration - progress);
 
-                sb.Append(",\"hazard_active\":").Append(activeNow ? "true" : "false")
-                  .Append(",\"days_until_hazard\":").Append(Num(activeNow ? 0f : untilStart))
-                  .Append(",\"hazard_days_left\":").Append(Num(activeNow ? untilEnd : 0f))
-                  .Append(",\"cycle_length_days\":").Append(cycleLength);
+                sb.Append(",\"hazard_active\":").Append(activeNow ? "true" : "false");
+
+                if (activeNow)
+                {
+                    sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "unknown" : current.GetType().Name))
+                      .Append(",\"hazard_days_left\":").Append(Num(untilEnd));
+                }
+
+                if (debug)
+                {
+                    sb.Append(",\"debug_hazard_type\":").Append(Json.Str(current == null ? "none" : current.GetType().Name))
+                      .Append(",\"debug_hazard_duration_days\":").Append(duration)
+                      .Append(",\"debug_days_until_hazard\":").Append(Num(activeNow ? 0f : untilStart))
+                      .Append(",\"debug_cycle_length_days\":").Append(cycleLength);
+                }
             });
 
             Section(sb, errors, "beavers", () =>
@@ -92,16 +103,24 @@ namespace TimberbornAI
                 if (build != null) sb.Append(",\"science_points\":").Append(build.Science.SciencePoints);
             });
 
-            // Members not yet confirmed: dump their readable properties so the real
-            // names show up in /state without another lookup round.
-            Section(sb, errors, "raw", () =>
+            // The current game speed is on screen for a player, so it is always included.
+            Section(sb, errors, "speed", () =>
             {
-                sb.Append(",\"raw\":{")
-                  .Append("\"weather_service\":").Append(Describer.Describe(svc.Weather)).Append(',')
-                  .Append("\"speed_manager\":").Append(Describer.Describe(svc.Speed)).Append(',')
-                  .Append("\"hazard_service\":").Append(Describer.Describe(svc.Hazard))
-                  .Append('}');
+                sb.Append(",\"speed\":").Append(GameAccess.IntOf(GameAccess.Member(svc.Speed, "CurrentSpeed")));
             });
+
+            // Raw property dumps include the hidden weather schedule, so they are debug only.
+            if (debug)
+            {
+                Section(sb, errors, "raw", () =>
+                {
+                    sb.Append(",\"raw\":{")
+                      .Append("\"weather_service\":").Append(Describer.Describe(svc.Weather)).Append(',')
+                      .Append("\"speed_manager\":").Append(Describer.Describe(svc.Speed)).Append(',')
+                      .Append("\"hazard_service\":").Append(Describer.Describe(svc.Hazard))
+                      .Append('}');
+                });
+            }
 
             sb.Append(",\"errors\":[").Append(string.Join(",", errors.Select(Json.Str))).Append(']');
             return sb.Append('}').ToString();

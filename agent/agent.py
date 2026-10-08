@@ -180,8 +180,11 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   storage and a path connect to it.
 - Coordinates are x, y on the ground; z is height. The district center is your hub: put things
   within walking distance of it and connect them with paths.
-- Droughts are the real clock (`days_until_hazard`, `hazard_type`). Water and food storage ahead
-  of a drought beat any expansion.
+- Like a human player, you do not know when a drought will come or how long it will last. You
+  only see a hazard once it has started (`hazard_active`). Timberborn does have recurring
+  droughts that cut off water, so the sensible habit is to keep a healthy water and food reserve
+  at all times and grow the reserve before expanding. Do not claim to know the date of the next
+  one in your notes, because you do not.
 - The game starts paused. Set speed when you want time to pass, and slow down or pause if you need
   to think through something complicated.
 - Commands can fail. Read the reply and adapt; never repeat a command that just failed for the
@@ -250,7 +253,7 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
         return None
 
     print(f"[turn {turn_no}] cycle {state.get('cycle')} day {state.get('cycle_day')} "
-          f"drought in {state.get('days_until_hazard')} days, beavers {state.get('beavers')}, "
+          f"hazard {'ACTIVE' if state.get('hazard_active') else 'none'}, beavers {state.get('beavers')}, "
           f"stock {json.dumps({k: v.get('available') for k, v in (state.get('stock') or {}).items() if isinstance(v, dict)})}")
 
     this_turn = [{
