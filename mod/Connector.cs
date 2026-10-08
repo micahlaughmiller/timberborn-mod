@@ -88,6 +88,7 @@ namespace TimberbornAI
 
             int[] dx = { 1, -1, 0, 0 };
             int[] dy = { 0, 0, 1, -1 };
+            var bridges = SlopeBridges(world);
 
             while (queue.Count > 0)
             {
@@ -115,6 +116,28 @@ namespace TimberbornAI
                         dist[nextKey] = newDist;
                         previous[nextKey] = current;
                         if (stepCost == 0) queue.AddFirst(nextKey); else queue.AddLast(nextKey);
+                    }
+                }
+
+                // A natural Slope joins two levels: cross it from one side to the other.
+                if (bridges.TryGetValue(current, out var hops))
+                {
+                    foreach (var target in hops)
+                    {
+                        int hx = (int)(target % 100000L), hy = (int)(target / 100000L);
+                        if (hx < minX || hx > maxX || hy < minY || hy > maxY) continue;
+
+                        var landing = Look(hx, hy);
+                        if (!landing.Passable) continue;
+
+                        int hopCost = landing.Exists ? 0 : 1;
+                        int hopDist = dist[current] + hopCost;
+                        if (!dist.TryGetValue(target, out var hopOld) || hopDist < hopOld)
+                        {
+                            dist[target] = hopDist;
+                            previous[target] = current;
+                            if (hopCost == 0) queue.AddFirst(target); else queue.AddLast(target);
+                        }
                     }
                 }
             }
@@ -154,6 +177,51 @@ namespace TimberbornAI
         }
 
         internal static long Key(int x, int y) => (long)y * 100000L + x;
+
+        /// <summary>
+        /// The map's natural Slope pieces, as two-way crossings between the ground on either side of them.
+        /// A Slope at height h joins the neighbour at surface height h with the opposite neighbour at h + 1,
+        /// along either axis. Read from the actual terrain heights, so the piece's facing does not matter.
+        /// This is how beavers get up onto a plateau without stairs, which need science the start lacks.
+        /// </summary>
+        internal static Dictionary<long, List<long>> SlopeBridges(AIWorldServices world)
+        {
+            var result = new Dictionary<long, List<long>>();
+            var core = AIGameServices.Instance;
+            if (core == null) return result;
+
+            void Link(long a, long b)
+            {
+                if (!result.TryGetValue(a, out var list)) result[a] = list = new List<long>();
+                if (!list.Contains(b)) list.Add(b);
+            }
+
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                if (StateReader.EntityName(entity) != "Slope") continue;
+                if (!WorldReader.EntityCell(entity, out var at)) continue;
+
+                try
+                {
+                    for (int axis = 0; axis < 2; axis++)
+                    {
+                        int sx = axis == 0 ? 1 : 0, sy = axis == 0 ? 0 : 1;
+                        int ax = at.x - sx, ay = at.y - sy, bx = at.x + sx, by = at.y + sy;
+                        int za = Placer.SurfaceZ(world, ax, ay), zb = Placer.SurfaceZ(world, bx, by);
+                        if (za < 0 || zb < 0) continue;
+
+                        if ((za == at.z && zb == at.z + 1) || (zb == at.z && za == at.z + 1))
+                        {
+                            Link(Key(ax, ay), Key(bx, by));
+                            Link(Key(bx, by), Key(ax, ay));
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Walking distance in steps from the target cell to every cell it can reach inside the window,
@@ -197,6 +265,7 @@ namespace TimberbornAI
             if (!Look(tx, ty).Passable) return null;
 
             var dist = new Dictionary<long, int> { [Key(tx, ty)] = 0 };
+            var bridges = SlopeBridges(world);
             var queue = new Queue<long>();
             queue.Enqueue(Key(tx, ty));
 
@@ -222,6 +291,22 @@ namespace TimberbornAI
 
                     dist[nextKey] = dist[current] + 1;
                     queue.Enqueue(nextKey);
+                }
+
+                // A natural Slope joins two levels: crossing it costs two steps.
+                if (bridges.TryGetValue(current, out var hops))
+                {
+                    foreach (var target in hops)
+                    {
+                        if (dist.ContainsKey(target)) continue;
+
+                        int hx = (int)(target % 100000L), hy = (int)(target / 100000L);
+                        if (hx < minX || hx > maxX || hy < minY || hy > maxY) continue;
+                        if (!Look(hx, hy).Passable) continue;
+
+                        dist[target] = dist[current] + 2;
+                        queue.Enqueue(target);
+                    }
                 }
             }
 
