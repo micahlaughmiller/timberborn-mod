@@ -417,6 +417,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   `connect` from that building's `access_cell` (in placed_buildings) to the district center's
   `access_cell`. Do not hand-draw routes with build_path unless connect fails.
   Read the reply: it says how many tiles were new, and whether any could not be placed.
+- ONE PLACEMENT AT A TIME. Every build, connect and demolish reply carries map_now, the ground as it is after
+  that change. Never reuse a site from an earlier find_sites once you have placed anything nearby: the buildings
+  and roads you just put down change which doors are cut off and how long the roads must be. Call find_sites
+  again, place, read map_now, then plan the next one from it.
 - TREES: mark the nearest trees on the flag's own level first (mark_trees with just from_x/from_y: it marks every tree within 30 walking steps). Trees
   up a cliff come later, only once you have proved a way up (a road the game does not flag as unconnected).
   If mark_trees finds few trees but cells_only_reachable_up_a_slope is large, the forest is on another level. A road
@@ -591,7 +595,42 @@ def run_tool(name, args):
         return call_mod("/specs?" + query)
     payload = dict(args)
     payload["action"] = name
-    return call_mod("/command", payload)
+    result = call_mod("/command", payload)
+    return with_fresh_map(name, args, result)
+
+
+# Commands that change what stands on the ground; each reply carries the updated map around the change.
+WORLD_CHANGING = {"build", "connect", "build_path", "demolish"}
+FRESH_MAP_SIDE = 24
+
+
+def with_fresh_map(name, args, result):
+    """Attach the live map around a change so the next placement is planned on the real, current ground.
+
+    The game updates the moment something is placed (find_sites and connect read the live world), but the
+    model otherwise keeps reasoning from the map it fetched earlier in the turn, which no longer shows
+    the buildings and paths it has just put down.
+    """
+    if name not in WORLD_CHANGING or not isinstance(result, dict) or not result.get("ok") or args.get("dry_run"):
+        return result
+    try:
+        if name == "connect":
+            cx = (int(args["x1"]) + int(args["x2"])) // 2
+            cy = (int(args["y1"]) + int(args["y2"])) // 2
+        else:
+            cx, cy = int(args["x"]), int(args["y"])
+        half = FRESH_MAP_SIDE // 2
+        query = urllib.parse.urlencode({"x": cx - half, "y": cy - half, "w": FRESH_MAP_SIDE, "h": FRESH_MAP_SIDE})
+        area = call_mod("/map?" + query)
+        keep = ("origin", "width", "height", "objects", "object_legend", "reachable", "heights")
+        result = dict(result)
+        result["map_now"] = {k: area[k] for k in keep if k in area}
+        result["map_now_note"] = ("the ground right now, including what you just placed; plan the next placement "
+                                  "from this, and call find_sites again rather than reusing an earlier site")
+    except Exception as exc:  # the change itself succeeded; only the refresh failed
+        result = dict(result)
+        result["map_now_error"] = str(exc)
+    return result
 
 
 def bootstrap_context():

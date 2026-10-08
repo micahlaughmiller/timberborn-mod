@@ -19,7 +19,7 @@ namespace TimberbornAI
         private const int MaxSide = 90;
         private const int Margin = 12;
 
-        private struct Cell
+        internal struct Cell
         {
             public bool Passable;
             public bool Exists;
@@ -247,7 +247,8 @@ namespace TimberbornAI
         /// </summary>
         internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
                                                                int tx, int ty, int minX, int maxX, int minY, int maxY,
-                                                               bool costed = false, bool useSlopes = true, bool throughTrees = false)
+                                                               bool costed = false, bool useSlopes = true, bool throughTrees = false,
+                                                               HashSet<long> blocked = null, Dictionary<long, Cell> sharedCache = null)
         {
             if (!Placer.TryGetBlueprint(build, "Path", out var blueprint, out _)) return null;
             var pathSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
@@ -256,9 +257,19 @@ namespace TimberbornAI
             var existing = ExistingPaths();
             // Beavers walk through trees and bushes even though a path tile cannot be placed on them.
             var natural = throughTrees ? NaturalCells() : null;
-            var cache = new Dictionary<long, Cell>();
+            // The cache can be shared between searches that only differ in `blocked` (the footprint of a
+            // building being considered), so the expensive passability checks happen once.
+            var cache = sharedCache ?? new Dictionary<long, Cell>();
 
+            // `blocked` cells (a candidate building's own footprint) are not walkable, whatever the cache says.
             Cell Look(int x, int y)
+            {
+                var cell = LookBase(x, y);
+                if (blocked != null && blocked.Contains(Key(x, y))) { cell.Passable = false; cell.Exists = false; }
+                return cell;
+            }
+
+            Cell LookBase(int x, int y)
             {
                 long key = Key(x, y);
                 if (cache.TryGetValue(key, out var known)) return known;

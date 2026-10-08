@@ -175,6 +175,36 @@ namespace TimberbornAI
                 cellsSeen.Add(cellKey);
             }
 
+            // The walks above were measured with each candidate's own footprint still free ground, so a route
+            // could pass straight through the building it is about to place, and a door that faces a dead
+            // pocket looked as good as one that faces the road. Re-measure the leading candidates, each
+            // facing separately, with the footprint blocked, and drop the ones whose door is then cut off.
+            if (walk != null && haveTarget)
+            {
+                int gx0 = Math.Max(0, Math.Min(x0, toX) - 8), gx1 = Math.Min(size.x - 1, Math.Max(x0 + w, toX) + 8);
+                int gy0 = Math.Max(0, Math.Min(y0, toY) - 8), gy1 = Math.Min(size.y - 1, Math.Max(y0 + h, toY) + 8);
+                var sharedWalk = new Dictionary<long, Connector.Cell>();
+                var rechecked = new List<Candidate>();
+
+                foreach (var c in passing.OrderBy(c => c.Distance + c.NewTiles).ThenBy(c => c.DoorDistance).Take(Math.Max(24, wanted * 6)))
+                {
+                    if (!c.HasDoor) { rechecked.Add(c); continue; }
+
+                    var footprint = Footprint(blockSpec, new Placement(new Vector3Int(c.X, c.Y, c.Z), c.Orientation, FlipMode.Unflipped));
+                    var walkBlocked = Connector.WalkingDistances(build, world, toX, toY, gx0, gx1, gy0, gy1, false, true, false, footprint, sharedWalk);
+                    long doorKey = Connector.Key(c.DoorX, c.DoorY);
+                    if (walkBlocked == null || !walkBlocked.TryGetValue(doorKey, out var steps)) continue;
+
+                    var costBlocked = Connector.WalkingDistances(build, world, toX, toY, gx0, gx1, gy0, gy1, true, true, false, footprint, sharedWalk);
+                    c.Walk = steps;
+                    c.NewTiles = costBlocked != null && costBlocked.TryGetValue(doorKey, out var needed) ? needed : steps;
+                    c.DoorDistance = c.NewTiles * 1000 + steps;
+                    rechecked.Add(c);
+                }
+
+                passing = rechecked;
+            }
+
             var good = passing
                 .GroupBy(c => ((long)c.Y * 100000L + c.X) * 100L + c.Z)
                 .Select(g => g.OrderBy(c => c.DoorDistance).First())
@@ -249,6 +279,22 @@ namespace TimberbornAI
             why = "beavers could not walk to it from the district center on one level (it is on higher or lower ground, "
                   + "across water, or behind trees)";
             return false;
+        }
+
+        /// <summary>The (x, y) cells a building covers at this placement, as Connector keys.</summary>
+        private static HashSet<long> Footprint(BlockObjectSpec spec, Placement placement)
+        {
+            var cells = new HashSet<long>();
+            try
+            {
+                foreach (object block in spec.GetBlocks(placement))
+                {
+                    if (GameAccess.MemberAny(block, "Coordinates", "Coordinate", "Position") is Vector3Int v)
+                        cells.Add(Connector.Key(v.x, v.y));
+                }
+            }
+            catch { }
+            return cells;
         }
 
         /// <summary>True if any cell of the building's footprint at this placement is one of the given (x, y) cells.</summary>
