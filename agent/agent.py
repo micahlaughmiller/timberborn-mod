@@ -358,6 +358,19 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
      Keep water and food comfortably ahead of the population while you do it, and check what beavers need
      (inspect_specs NeedSpec) so well-being buildings go where they matter.
   10. Eventually, bots.
+- HOW EXPERIENCED PLAYERS THINK. Use this as guidance beneath the build order, never against it:
+  * Plan for the WORST drought or badtide, not the average. Size your water and food reserve from the
+    beavers' real need rates (inspect_specs NeedSpec) times a generous number of days, then add a margin.
+    Do not use a remembered number for how much a beaver drinks: read it from the game.
+  * Water security goes beyond one pump: storage tanks first; later a Dam to hold river water as a reservoir
+    (Dam.Folktails is already unlocked), and floodgates once science unlocks them. Badtides (toxic water)
+    are handled later by routing badwater away from your supply.
+  * Workers are fluid: shift crews to whichever need is the current bottleneck, food and water first.
+  * Keep wood renewable: foresters (unlock them) replant trees, and power wheels drive lumber mills and
+    gear workshops. Do not clear every tree near the settlement.
+  * Diversify food over time (berries, then farms and grill) and keep housing ahead of the population.
+  * Build compactly along roads. Once flat land is scarce, go vertical (platforms, roofs) so green land
+    stays free for crops. Leave decorations until water, food and housing are stable.
 - LEARN THE RULES FROM THE GAME, do not guess them. Call inspect_building on a building before you rely on what it
   needs or produces (workers, inputs, outputs, capacity), and call inspect_specs with type NeedSpec to learn what
   beavers need to survive and be happy. Let that decide how much of each thing to build and in what order.
