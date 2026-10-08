@@ -27,3 +27,19 @@
   high well-being.
 - The exact recipes, power draws and assembly times for bots are not known from these notes. Read them with
   inspect_building (BotPartFactory, BotAssembler) before planning.
+
+## Bot recipes and costs
+
+Verified against this game's building list: the Bot Part Factory costs 500 science, 50 planks, 25 gears and 15 metal
+blocks; the Bot Assembler costs 750 science, 100 planks, 50 gears and 50 metal blocks (150 planks, 75 gears and 65 metal
+blocks in total, plus 1250 science). The Refinery (biofuel) and Smelter are also in the list and cost science and metal.
+
+Unverified, from a wiki summary (confirm with inspect_building on BotPartFactory and BotAssembler before planning):
+- Bot Part Factory, about 150 HP: one chassis per 18 hours (5 planks, 1 metal block), one head per 18 hours (1 plank,
+  3 gears, 1 metal block), or four limbs per 18 hours (1 plank and 3 gears each).
+- Bot Assembler, about 250 HP, 2 workers: one bot per 36 hours from a chassis, a head and limbs. A power shortfall stalls it.
+- A whole bot is roughly 10 planks, 15 gears and 2 metal blocks of parts.
+- Bots reportedly last about 70 days. Folktails keep them running with fuel from a biofuel refinery (fed carrots or
+  potatoes); Iron Teeth use charging stations.
+- Because the grid needs about 400 HP for both buildings plus a steady plank and gear supply, bots belong well after the
+  basics, power, metal and the science to unlock them.
