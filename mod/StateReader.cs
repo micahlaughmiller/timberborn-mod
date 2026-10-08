@@ -18,6 +18,7 @@ namespace TimberbornAI
     {
         private const int MaxEntities = 20000;
         private const int MaxEntityKinds = 40;
+        private const float WarningDays = 3f; // the game warns this many days before a hazard
 
         public static string Snapshot(bool debug = false)
         {
@@ -52,13 +53,19 @@ namespace TimberbornAI
                 var untilStart = Math.Max(0f, startDay - progress);
                 var untilEnd = Math.Max(0f, startDay + duration - progress);
 
-                sb.Append(",\"hazard_active\":").Append(activeNow ? "true" : "false");
+                // The game flashes a signal and plays a sound for the last 3 days before a
+                // drought or badtide, naming it but never saying how long until it starts.
+                // The agent gets the same: a flag and the type, no countdown.
+                bool approaching = !activeNow && untilStart > 0f && untilStart <= WarningDays;
+
+                sb.Append(",\"hazard_active\":").Append(activeNow ? "true" : "false")
+                  .Append(",\"hazard_approaching\":").Append(approaching ? "true" : "false");
+
+                if (activeNow || approaching)
+                    sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "unknown" : current.GetType().Name));
 
                 if (activeNow)
-                {
-                    sb.Append(",\"hazard_type\":").Append(Json.Str(current == null ? "unknown" : current.GetType().Name))
-                      .Append(",\"hazard_days_left\":").Append(Num(untilEnd));
-                }
+                    sb.Append(",\"hazard_days_left\":").Append(Num(untilEnd));
 
                 if (debug)
                 {

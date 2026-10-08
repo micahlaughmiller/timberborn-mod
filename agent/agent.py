@@ -180,11 +180,13 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   storage and a path connect to it.
 - Coordinates are x, y on the ground; z is height. The district center is your hub: put things
   within walking distance of it and connect them with paths.
-- Like a human player, you do not know when a drought will come or how long it will last. You
-  only see a hazard once it has started (`hazard_active`). Timberborn does have recurring
-  droughts that cut off water, so the sensible habit is to keep a healthy water and food reserve
-  at all times and grow the reserve before expanding. Do not claim to know the date of the next
-  one in your notes, because you do not.
+- Like a human player, you do not know when a drought or badtide will come or how long it will
+  last. The game warns about 3 days ahead (`hazard_approaching`, with `hazard_type`), but never says
+  how many days remain; once it starts you see `hazard_active` and `hazard_days_left`. Timberborn
+  has recurring hazards, droughts cut off water, so keep a healthy water and food reserve at all
+  times and grow it before expanding. When the warning appears, use what time is left to top up
+  storage and finish what protects the colony. Never state the date of the next hazard in your
+  notes, because you do not know it.
 - The game starts paused. Set speed when you want time to pass, and slow down or pause if you need
   to think through something complicated.
 - Commands can fail. Read the reply and adapt; never repeat a command that just failed for the
@@ -253,7 +255,7 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
         return None
 
     print(f"[turn {turn_no}] cycle {state.get('cycle')} day {state.get('cycle_day')} "
-          f"hazard {'ACTIVE' if state.get('hazard_active') else 'none'}, beavers {state.get('beavers')}, "
+          f"hazard {'ACTIVE' if state.get('hazard_active') else ('WARNING' if state.get('hazard_approaching') else 'none')}, beavers {state.get('beavers')}, "
           f"stock {json.dumps({k: v.get('available') for k, v in (state.get('stock') or {}).items() if isinstance(v, dict)})}")
 
     this_turn = [{
