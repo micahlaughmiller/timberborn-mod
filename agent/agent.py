@@ -69,7 +69,7 @@ TOOLS = [
                 "prefab": {"type": "string", "description": "Exact name from get_buildings, e.g. 'SmallWarehouse.Folktails'"},
                 "x": {"type": "integer"},
                 "y": {"type": "integer"},
-                "z": {"type": "integer", "description": "Optional. Defaults to the terrain surface."},
+                "z": {"type": "integer", "description": "Use the z that find_sites returned for this spot. Some buildings (a water pump on the river bank) sit one level below the surface, and the default surface height is wrong for them."},
                 "orientation": {"type": "string", "enum": ["Cw0", "Cw90", "Cw180", "Cw270"]},
                 "dry_run": {"type": "boolean"},
             },
@@ -210,7 +210,8 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
 - Call `note` every turn. The audience sees only that caption, so say the real reason for your move.
 - Never guess coordinates for a building. Call `find_sites` with the building name and a target point
   (`near_x`, `near_y`: where the trees, water or berries are, or the district center) and build at one
-  of the returned spots, using the orientation it gives. Those spots already satisfy the game's rules,
+  of the returned spots, passing the same `x`, `y`, `z` and `orientation` it gives. Leaving out `z` lets the game guess
+  the surface level, which is wrong for buildings that sit lower, such as a water pump on the river bank. Those spots already satisfy the game's rules,
   including water for pumps and being reachable for flags. Use `get_buildings` for costs and `get_map`
   to understand the terrain. Heights in the map are surface levels.
 - `placed_buildings` in the snapshot lists what you have placed, with its facing, whether it is
@@ -299,6 +300,34 @@ def bootstrap_context():
 
 def flatten(turns):
     return [message for turn in turns for message in turn]
+
+
+THINKING_TYPES = ("thinking", "redacted_thinking")
+
+
+def block_type(block):
+    return block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+
+
+def strip_thinking(turn):
+    """Drop reasoning blocks from a finished turn before it goes into history.
+
+    Thinking blocks carry a signature bound to the exact conversation that preceded them. Once old
+    turns are trimmed away, a kept block no longer matches its prefix and the API rejects the whole
+    request with a 400. They are only needed while the turn that produced them is still running,
+    so history keeps the text and tool calls and nothing else.
+    """
+    cleaned = []
+    for message in turn:
+        content = message["content"]
+        if message["role"] == "assistant" and isinstance(content, list):
+            kept = [b for b in content if block_type(b) not in THINKING_TYPES]
+            if not kept:
+                continue
+            cleaned.append({"role": "assistant", "content": kept})
+        else:
+            cleaned.append(message)
+    return cleaned
 
 
 def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
@@ -401,7 +430,7 @@ def main():
                 continue
 
             if finished:
-                turns.append(finished)
+                turns.append(strip_thinking(finished))
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nstopped.")
