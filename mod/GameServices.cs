@@ -146,6 +146,7 @@ namespace TimberbornAI
         public readonly BlockValidator Validator;
         public readonly ConstructionFactory Construction;
         public readonly TemplateCollectionService Templates;
+        public readonly EntityService EntityRemover;
         public readonly BlockObjectFactory Factory;
         public readonly BlockObjectValidationService Validation;
 
@@ -159,8 +160,10 @@ namespace TimberbornAI
             ConstructionFactory construction,
             TemplateCollectionService templates,
             BlockObjectFactory factory,
-            BlockObjectValidationService validation)
+            BlockObjectValidationService validation,
+            EntityService entityRemover)
         {
+            EntityRemover = entityRemover;
             Templates = templates;
             Factory = factory;
             Validation = validation;

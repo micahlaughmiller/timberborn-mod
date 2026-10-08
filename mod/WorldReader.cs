@@ -371,7 +371,7 @@ namespace TimberbornAI
         }
 
         /// <summary>The BlockObject (position, orientation, entrance) of an entity, or null if it has none.</summary>
-        private static Timberborn.BlockSystem.BlockObject BlockOf(object entity)
+        internal static Timberborn.BlockSystem.BlockObject BlockOf(object entity)
         {
             if (entity == null) return null;
 

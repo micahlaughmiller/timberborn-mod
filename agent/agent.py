@@ -103,6 +103,24 @@ TOOLS = [
         },
     },
     {
+        "name": "demolish",
+        "description": (
+            "Remove one of your own buildings or path tiles to undo a mistake (a flag placed on the wrong "
+            "level, a site you no longer want). Give the x and y exactly as listed in placed_buildings, "
+            "or the cell of a path tile. It cannot remove trees, beavers or terrain, and it refuses the "
+            "district center. Use it sparingly: materials already delivered to a site may be lost."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"},
+                "prefab": {"type": "string", "description": "optional: the building name, as a safety check"},
+            },
+            "required": ["x", "y"],
+        },
+    },
+    {
         "name": "connect",
         "description": (
             "Lay a path between two cells, routing around trees, buildings, water and steep ground and "
