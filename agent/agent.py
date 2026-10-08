@@ -84,7 +84,7 @@ TOOLS = [
             "intake on water, flags must be reachable). Returns a list of {x, y, z, orientation} sorted "
             "by distance to near_x/near_y (default: the district center). Each spot already uses the facing whose "
             "door gives the shortest real walk to the district center (walk_steps_to_settlement), going around trees, "
-            "water and cliffs, and includes the building's doorstep cell. ALWAYS use this instead of "
+            "water and cliffs, and includes the building's access cell (doorstep). ALWAYS use this instead of "
             "guessing coordinates, then build at one of the returned spots with the same orientation."
         ),
         "input_schema": {
@@ -106,18 +106,18 @@ TOOLS = [
         "name": "connect",
         "description": (
             "Lay a path between two cells, routing around trees, buildings, water and steep ground and "
-            "reusing path tiles that already exist. Give it the DOORSTEP cells of the two buildings you "
-            "want to join: each building in placed_buildings has entrance.DoorstepCoordinates {x, y}, the "
-            "one cell outside its door that a path must end on. Joining a new building's doorstep to the "
-            "district center's doorstep is the normal way to make it reachable. If it says no route "
+            "reusing path tiles that already exist. Give it the ACCESS cells of the two buildings you "
+            "want to join: each building in placed_buildings has access_cell {x, y}, the "
+            "one free cell outside its door that a path must end on. Joining a new building's access cell to the "
+            "district center's access cell is the normal way to make it reachable. If it says no route "
             "exists, something is blocking: clear trees with mark_trees, or place the building elsewhere."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "x1": {"type": "integer", "description": "doorstep x of the first building"},
+                "x1": {"type": "integer", "description": "access_cell x of the first building"},
                 "y1": {"type": "integer"},
-                "x2": {"type": "integer", "description": "doorstep x of the second building"},
+                "x2": {"type": "integer", "description": "access_cell x of the second building"},
                 "y2": {"type": "integer"},
             },
             "required": ["x1", "y1", "x2", "y2"],
@@ -214,7 +214,7 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   including water for pumps and being reachable for flags. Use `get_buildings` for costs and `get_map`
   to understand the terrain. Heights in the map are surface levels.
 - `placed_buildings` in the snapshot lists what you have placed, with its facing, whether it is
-  finished, and its `entrance`: the one cell a path must end on for beavers to get in. A path that
+  finished, and its `access_cell`: the one free cell outside its door that a path must end on for beavers to get in. A path that
   stops beside a building does nothing.
 - get_map also returns an `objects` grid: a letter per cell naming what stands there (trees, berry
   bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
@@ -222,8 +222,8 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   close to it. Check the grid; do not guess where the trees are.
 - Beavers walk and haul along paths. A building with no path to the district center will never be
   built or worked, and the game shows "Unconnected building" for it. After placing anything, call
-  `connect` from that building's doorstep (entrance.DoorstepCoordinates in placed_buildings) to the
-  district center's doorstep. Do not hand-draw routes with build_path unless connect fails.
+  `connect` from that building's `access_cell` (in placed_buildings) to the district center's
+  `access_cell`. Do not hand-draw routes with build_path unless connect fails.
   Read the reply: it says how many tiles were new, and whether any could not be placed.
 - A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
   is not enough: call mark_trees on a rectangle of trees close to the flag (the reply says how many

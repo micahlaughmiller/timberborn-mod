@@ -208,7 +208,9 @@ namespace TimberbornAI
                 if (entranceSpec == null || !entranceSpec.HasEntrance) return false;
 
                 var positioned = PositionedEntrance.From(spec.GetBlocks(), entranceSpec, placement);
-                doorstep = positioned.DoorstepCoordinates;
+                // Coordinates is the free cell outside the door where a path ends. The game's
+                // DoorstepCoordinates is inside the building (the district center reports it on its own footprint).
+                doorstep = positioned.Coordinates;
                 return true;
             }
             catch (Exception e)

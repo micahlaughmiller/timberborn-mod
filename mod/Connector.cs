@@ -31,7 +31,7 @@ namespace TimberbornAI
             int x1 = Json.Int(body, "x1", int.MinValue), y1 = Json.Int(body, "y1", int.MinValue);
             int x2 = Json.Int(body, "x2", int.MinValue), y2 = Json.Int(body, "y2", int.MinValue);
             if (x1 == int.MinValue || y1 == int.MinValue || x2 == int.MinValue || y2 == int.MinValue)
-                return Placer.Fail("connect requires x1, y1, x2, y2: the doorstep cells to join (see placed_buildings[].entrance.DoorstepCoordinates)");
+                return Placer.Fail("connect requires x1, y1, x2, y2: the access cells to join (see placed_buildings[].access_cell)");
 
             var build = AIBuildServices.Instance;
             var world = AIWorldServices.Instance;
@@ -76,8 +76,8 @@ namespace TimberbornAI
             long start = Key(x1, y1), goal = Key(x2, y2);
             var startCell = Look(x1, y1);
             var goalCell = Look(x2, y2);
-            if (!startCell.Passable) return Placer.Fail("the start cell (" + x1 + "," + y1 + ") cannot hold a path (occupied or no terrain). Use the doorstep cell of the building.");
-            if (!goalCell.Passable) return Placer.Fail("the end cell (" + x2 + "," + y2 + ") cannot hold a path (occupied or no terrain). Use the doorstep cell of the building.");
+            if (!startCell.Passable) return Placer.Fail("the start cell (" + x1 + "," + y1 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
+            if (!goalCell.Passable) return Placer.Fail("the end cell (" + x2 + "," + y2 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
 
             // 0-1 breadth-first search: existing tiles cost 0, new tiles cost 1.
             var dist = new Dictionary<long, int>();

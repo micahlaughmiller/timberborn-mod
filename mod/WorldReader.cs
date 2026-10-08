@@ -358,7 +358,7 @@ namespace TimberbornAI
                 {
                     var block = BlockOf(center);
                     if (block != null && block.HasEntrance
-                        && GameAccess.Member(block.PositionedEntrance, "DoorstepCoordinates") is Vector3Int door)
+                        && GameAccess.Member(block.PositionedEntrance, "Coordinates") is Vector3Int door)
                     {
                         x = door.x;
                         y = door.y;
@@ -422,15 +422,24 @@ namespace TimberbornAI
                 var block = BlockOf(entity);
                 if (block == null) continue;
 
-                string entrance = "null";
-                try { if (block.HasEntrance) entrance = Describer.Describe(block.PositionedEntrance); }
-                catch { entrance = "null"; }
+                string entrance = "null", access = "null";
+                try
+                {
+                    if (block.HasEntrance)
+                    {
+                        entrance = Describer.Describe(block.PositionedEntrance);
+                        if (GameAccess.Member(block.PositionedEntrance, "Coordinates") is Vector3Int cell)
+                            access = "{\"x\":" + cell.x + ",\"y\":" + cell.y + ",\"z\":" + cell.z + "}";
+                    }
+                }
+                catch { entrance = "null"; access = "null"; }
 
                 var at = block.Coordinates;
                 items.Add("{\"name\":" + Json.Str(name)
                         + ",\"x\":" + at.x + ",\"y\":" + at.y + ",\"z\":" + at.z
                         + ",\"orientation\":" + Json.Str(block.Orientation.ToString())
                         + ",\"finished\":" + (block.IsFinished ? "true" : "false")
+                        + ",\"access_cell\":" + access
                         + ",\"entrance\":" + entrance + "}");
                 if (items.Count >= 80) break;
             }
