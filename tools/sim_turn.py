@@ -77,6 +77,10 @@ near = {"near_x": (center or {}).get("x", 100), "near_y": (center or {}).get("y"
 # ---- opening buildings, in the build order the agent is told to follow
 for base in ["SmallWarehouse", "SmallTank", "Inventor", "Lodge"]:
     prefab = base + "." + faction
+    if any(str(b.get("name", "")) == prefab for b in buildings):
+        say("")
+        say("=== " + prefab + ": already placed, skipped")
+        continue
 
     def try_site(prefab=prefab):
         found = post(dict({"action": "find_sites", "prefab": prefab}, **near))
