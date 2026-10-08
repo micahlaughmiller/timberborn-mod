@@ -25,6 +25,7 @@ namespace TimberbornAI
                 case "find_sites":  return SiteFinder.Find(body);
                 case "connect":     return Connector.Connect(body);
                 case "demolish":    return Demolisher.Demolish(body);
+                case "set_gatherer": return GathererCommands.Select(body);
                 case "mark_trees":  return ForestryCommands.Mark(body, true);
                 case "unmark_trees": return ForestryCommands.Mark(body, false);
                 case "set_speed":   return SetSpeed(body);

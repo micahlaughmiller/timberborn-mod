@@ -434,11 +434,25 @@ namespace TimberbornAI
                 }
                 catch { entrance = "null"; access = "null"; }
 
+                // A gatherer flag does nothing until a good is chosen; an empty value means "No good selected".
+                string extra = "";
+                if (name.StartsWith("GathererFlag", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        var dropdown = Components.Get(entity, typeof(Timberborn.GatheringUI.GatherablePrioritizerDropdownProvider))
+                                       as Timberborn.GatheringUI.GatherablePrioritizerDropdownProvider;
+                        extra = ",\"gathering\":" + Json.Str(dropdown == null ? null : dropdown.GetValue());
+                    }
+                    catch { extra = ""; }
+                }
+
                 var at = block.Coordinates;
                 items.Add("{\"name\":" + Json.Str(name)
                         + ",\"x\":" + at.x + ",\"y\":" + at.y + ",\"z\":" + at.z
                         + ",\"orientation\":" + Json.Str(block.Orientation.ToString())
                         + ",\"finished\":" + (block.IsFinished ? "true" : "false")
+                        + extra
                         + ",\"access_cell\":" + access
                         + ",\"entrance\":" + entrance + "}");
                 if (items.Count >= 80) break;
