@@ -96,6 +96,14 @@ namespace TimberbornAI
                 return Fail("the game does not allow " + prefab + " at " + x + "," + y + "," + z + " facing " + orientation
                             + ": " + rulesNote + ". Try another orientation (Cw0, Cw90, Cw180, Cw270) or another spot.");
 
+            // 4c. Reachability: paths only join tiles on one level, so something on higher or lower ground than the
+            // path network can never be reached. Paths themselves and the district center are exempt, and "force"
+            // overrides for the rare case the caller knows better.
+            bool force = (Json.Field(body, "force") ?? "false").ToLowerInvariant() == "true";
+            if (!force && prefab != "Path" && !prefab.StartsWith("DistrictCenter", StringComparison.Ordinal)
+                && !SiteFinder.ReachableFromSettlement(build, world, blockSpec, placement, out var reachWhy))
+                return Fail("not reachable: " + prefab + " at " + x + "," + y + "," + z + ": " + reachWhy + ". Pick a spot from find_sites.");
+
             if ((Json.Field(body, "dry_run") ?? "false").ToLowerInvariant() == "true")
                 return Ok("valid: " + prefab + " can be placed at " + x + "," + y + "," + z + " facing " + orientation + " (dry run, nothing created)"
                           + (rulesNote != null ? " [" + rulesNote + "]" : ""));

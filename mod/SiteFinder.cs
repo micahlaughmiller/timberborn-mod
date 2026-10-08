@@ -152,6 +152,15 @@ namespace TimberbornAI
                     c.DoorDistance = steps;
                     c.Walk = steps;
                 }
+                else if (!hasDoor && walk != null)
+                {
+                    // Posts such as lumberjack and gatherer flags have no door, but beavers still have to
+                    // reach them. They need the flag's own cell or a neighbour to be walkable from the
+                    // settlement on one level; a flag on higher ground or across water never is.
+                    int best = ReachSteps(walk, c.X, c.Y);
+                    if (best < 0) continue;
+                    c.Walk = best;
+                }
                 passing.Add(c);
                 cellsSeen.Add(cellKey);
             }
@@ -180,6 +189,56 @@ namespace TimberbornAI
                         : "spots pass the block rules but none passed the full placement rules in the nearest " + fullChecks + "; widen the window or move near_x/near_y")
                         : "")
                  + "}";
+        }
+
+        /// <summary>Fewest steps from the settlement to the cell or one of its four neighbours, or -1 if none is walkable.</summary>
+        private static int ReachSteps(Dictionary<long, int> walk, int x, int y)
+        {
+            int best = -1;
+            int[] dx = { 0, 1, -1, 0, 0 }, dy = { 0, 0, 0, 1, -1 };
+            for (int i = 0; i < 5; i++)
+            {
+                if (walk.TryGetValue(Connector.Key(x + dx[i], y + dy[i]), out var steps) && (best < 0 || steps < best)) best = steps;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// Whether beavers could walk from the settlement to this building on one level: through its door if it
+        /// has one, otherwise to its own cell or a neighbour. Used by build so an unreachable spot is refused
+        /// even when the agent skipped find_sites. Returns true when it cannot judge (no district doorstep).
+        /// </summary>
+        internal static bool ReachableFromSettlement(AIBuildServices build, AIWorldServices world, BlockObjectSpec spec,
+                                                     Placement placement, out string why)
+        {
+            why = null;
+            if (!WorldReader.DistrictDoorstep(out var tx, out var ty)) return true;
+
+            var at = placement.Coordinates;
+            var size = world.Terrain.Size;
+            int minX = Math.Max(0, Math.Min(tx, at.x) - 10), maxX = Math.Min(size.x - 1, Math.Max(tx, at.x) + 10);
+            int minY = Math.Max(0, Math.Min(ty, at.y) - 10), maxY = Math.Min(size.y - 1, Math.Max(ty, at.y) + 10);
+            if (maxX - minX + 1 > 110 || maxY - minY + 1 > 110)
+            {
+                why = "it is too far from the settlement to check that beavers can reach it; build closer to the district center";
+                return false;
+            }
+
+            var field = Connector.WalkingDistances(build, world, tx, ty, minX, maxX, minY, maxY);
+            if (field == null) return true;
+
+            if (Placer.TryDoorstep(spec, placement, out var door))
+            {
+                if (field.ContainsKey(Connector.Key(door.x, door.y))) return true;
+                why = "its door would open onto ground that is not connected, on one level, to the district center "
+                      + "(a cliff, water, trees or another building are in the way)";
+                return false;
+            }
+
+            if (ReachSteps(field, at.x, at.y) >= 0) return true;
+            why = "beavers could not walk to it from the district center on one level (it is on higher or lower ground, "
+                  + "across water, or behind trees)";
+            return false;
         }
 
         /// <summary>True if any cell of the building's footprint at this placement is one of the given (x, y) cells.</summary>
