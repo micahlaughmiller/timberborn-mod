@@ -288,6 +288,13 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   times and grow it before expanding. When the warning appears, use what time is left to top up
   storage and finish what protects the colony. Never state the date of the next hazard in your
   notes, because you do not know it.
+- SURVIVAL COMES FIRST. Beavers drink water constantly and the starting water runs out within a day or
+  two, after which they die. In the first game days your only goals are: (1) a lumberjack flag that is
+  truly working, so logs arrive; (2) a water pump built with those logs, on the river bank. Do not spend
+  logs on anything else until the pump is finished. Verify instead of assuming: after placing a flag,
+  check on later turns that `Log` is rising or that sites are getting finished. If after about a game
+  day nothing has improved, something is wrong (unreachable flag, trees not reachable, no workers):
+  find the cause and fix it, or demolish it and place it somewhere reachable, rather than waiting.
 - Pace your building to your income. Every construction site waiting on materials competes for the
   same logs, so queuing several costly buildings at once means none of them finish. Early on, logs
   are the bottleneck: queue ONE costly building, wait until it is built, then queue the next. A
