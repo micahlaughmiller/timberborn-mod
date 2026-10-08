@@ -242,6 +242,13 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   times and grow it before expanding. When the warning appears, use what time is left to top up
   storage and finish what protects the colony. Never state the date of the next hazard in your
   notes, because you do not know it.
+- Pace your building to your income. Every construction site waiting on materials competes for the
+  same logs, so queuing several costly buildings at once means none of them finish. Early on, logs
+  are the bottleneck: queue ONE costly building, wait until it is built, then queue the next. A
+  `Log` stock of 0 does not prove logs are not being cut; cut logs go straight to waiting sites.
+  Check `placed_buildings` for `finished: false` before adding more.
+- When there is nothing useful to do but wait, run the game fast (speed 5 to 7). Each of your turns
+  is only a few seconds of real time, so at speed 3 almost no game time passes between them.
 - The game starts paused. Set speed when you want time to pass, and slow down or pause if you need
   to think through something complicated.
 - Commands can fail. Read the reply and adapt; never repeat a command that just failed for the
