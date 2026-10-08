@@ -79,22 +79,48 @@ namespace TimberbornAI
             if (!startCell.Passable) return Placer.Fail("the start cell (" + x1 + "," + y1 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
             if (!goalCell.Passable) return Placer.Fail("the end cell (" + x2 + "," + y2 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
 
-            // 0-1 breadth-first search: existing tiles cost 0, new tiles cost 1. Steps must stay on one level: the game does not connect paths across a height difference (a flag one level up was unreachable).
-            var dist = new Dictionary<long, int>();
-            var previous = new Dictionary<long, long>();
-            var queue = new LinkedList<long>();
-            dist[start] = startCell.Exists ? 0 : 1;
-            queue.AddFirst(start);
+            // Cheapest route by (new tiles, then steps, then turns). A plain shortest-path search treats every
+            // route with the same tile count as equal and often draws a staircase; weighting turns makes a
+            // straight line with one bend win, and existing path costs nothing, so a new road joins the old
+            // one instead of running beside it. A state is (cell, direction of the last step); direction 4
+            // means none (the start, or just after crossing a slope).
+            const int NewTileCost = 100, StepCost = 1, TurnCost = 3;
+            var bridges = SlopeBridges(world);
+            var best = new Dictionary<long, int>();
+            var back = new Dictionary<long, long>();
+            var open = new SortedSet<(int cost, int seq, long state)>();
+            int seq = 0;
+
+            long StateOf(long cellKey, int dir) => cellKey * 5 + dir;
+
+            void Push(long state, int cost, long from)
+            {
+                if (best.TryGetValue(state, out var known) && cost >= known) return;
+                best[state] = cost;
+                back[state] = from;
+                open.Add((cost, seq++, state));
+            }
+
+            long startState = StateOf(start, 4);
+            best[startState] = startCell.Exists ? 0 : NewTileCost;
+            back[startState] = -1;
+            open.Add((best[startState], seq++, startState));
 
             int[] dx = { 1, -1, 0, 0 };
             int[] dy = { 0, 0, 1, -1 };
-            var bridges = SlopeBridges(world);
+            long goalState = -1;
 
-            while (queue.Count > 0)
+            while (open.Count > 0)
             {
-                long current = queue.First.Value;
-                queue.RemoveFirst();
-                if (current == goal) break;
+                var top = open.Min;
+                open.Remove(top);
+
+                long state = top.state;
+                if (top.cost > best[state]) continue;
+
+                long current = state / 5;
+                int dir = (int)(state % 5);
+                if (current == goal) { goalState = state; break; }
 
                 int cx = (int)(current % 100000L), cy = (int)(current / 100000L);
                 int currentZ = Look(cx, cy).Z;
@@ -107,16 +133,8 @@ namespace TimberbornAI
                     var next = Look(nx, ny);
                     if (!next.Passable || next.Z != currentZ) continue;
 
-                    int stepCost = next.Exists ? 0 : 1;
-                    int newDist = dist[current] + stepCost;
-                    long nextKey = Key(nx, ny);
-
-                    if (!dist.TryGetValue(nextKey, out var old) || newDist < old)
-                    {
-                        dist[nextKey] = newDist;
-                        previous[nextKey] = current;
-                        if (stepCost == 0) queue.AddFirst(nextKey); else queue.AddLast(nextKey);
-                    }
+                    int stepTotal = top.cost + StepCost + (next.Exists ? 0 : NewTileCost) + (dir != 4 && dir != i ? TurnCost : 0);
+                    Push(StateOf(Key(nx, ny), i), stepTotal, state);
                 }
 
                 // A natural Slope joins two levels: cross it from one side to the other.
@@ -130,28 +148,22 @@ namespace TimberbornAI
                         var landing = Look(hx, hy);
                         if (!landing.Passable) continue;
 
-                        int hopCost = landing.Exists ? 0 : 1;
-                        int hopDist = dist[current] + hopCost;
-                        if (!dist.TryGetValue(target, out var hopOld) || hopDist < hopOld)
-                        {
-                            dist[target] = hopDist;
-                            previous[target] = current;
-                            if (hopCost == 0) queue.AddFirst(target); else queue.AddLast(target);
-                        }
+                        int hopTotal = top.cost + 2 * StepCost + (landing.Exists ? 0 : NewTileCost);
+                        Push(StateOf(target, 4), hopTotal, state);
                     }
                 }
             }
 
-            if (!dist.ContainsKey(goal))
+            if (goalState < 0)
                 return Placer.Fail("no walkable route from (" + x1 + "," + y1 + ") to (" + x2 + "," + y2 + ") within "
-                                   + (maxX - minX + 1) + "x" + (maxY - minY + 1) + " cells. Trees, water, other buildings or a change of ground level are in the way (paths cannot climb between levels). "
-                                   + "Clear trees with mark_trees or move one of the buildings.");
+                                   + (maxX - minX + 1) + "x" + (maxY - minY + 1) + " cells. Trees, water, other buildings or a change of ground level are in the way "
+                                   + "(paths only join tiles on one level, except across a natural Slope). Clear trees with mark_trees or move one of the buildings.");
 
             var route = new List<long>();
-            for (long at = goal; ; at = previous[at])
+            for (long st = goalState; st >= 0; st = back[st])
             {
-                route.Add(at);
-                if (at == start) break;
+                long cell = st / 5;
+                if (route.Count == 0 || route[route.Count - 1] != cell) route.Add(cell);
             }
             route.Reverse();
 
