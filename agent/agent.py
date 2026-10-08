@@ -288,6 +288,11 @@ TOOLS = [
     },
 ]
 
+# The tool list and system prompt are identical on every call, so ask the API to cache them. The final
+# tool carries the marker, which caches the whole tool list in front of it.
+CACHED_TOOLS = TOOLS[:-1] + [dict(TOOLS[-1], cache_control={"type": "ephemeral"})]
+
+
 SYSTEM = """You are playing a full game of Timberborn as the Folktails, solo, in front of a live audience.
 
 Each turn you get a world snapshot (/state). Act through tools. Rules:
@@ -371,6 +376,18 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   * Diversify food over time (berries, then farms and grill) and keep housing ahead of the population.
   * Build compactly along roads. Once flat land is scarce, go vertical (platforms, roofs) so green land
     stays free for crops. Leave decorations until water, food and housing are stable.
+- MORE HABITS OF GOOD PLAYERS (verify any number with inspect_building or inspect_specs before relying on it):
+  * Control population growth. Folktails breed only into empty lodge beds, and every beaver drinks and eats.
+    Add one or two lodges at a time, and only while the water and food reserves are rising. A sudden jump in
+    population is a common way a colony dies.
+  * Put a Teeth Grindstone near the lumberjacks: logging wears their teeth down. It is cheap and unlocked.
+  * Storage placement: raw inputs next to the buildings that use them, finished goods near the homes.
+  * Wood: birch grows fast and gives quick early logs, oak takes long but yields far more per tree. Unlock the
+    Forester with science and plant groves before the wild trees nearby run out.
+  * Well-being is not decoration: it speeds work and movement and lengthens life. Cluster amenities around the
+    homes, and check what each need wants in NeedSpec before choosing which to build.
+  * Power: water wheels stop in a drought; power wheels (workers turning a crank) cover early plank production.
+  * Straight, short roads beat winding ones. Beavers lose time on long walks.
 - LEARN THE RULES FROM THE GAME, do not guess them. Call inspect_building on a building before you rely on what it
   needs or produces (workers, inputs, outputs, capacity), and call inspect_specs with type NeedSpec to learn what
   beavers need to survive and be happy. Let that decide how much of each thing to build and in what order.
@@ -502,8 +519,8 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
         response = client.messages.create(
             model=model,
             max_tokens=2500,
-            system=system,
-            tools=TOOLS,
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+            tools=CACHED_TOOLS,
             messages=messages,
         )
         this_turn.append({"role": "assistant", "content": response.content})
