@@ -194,6 +194,30 @@ namespace TimberbornAI
             catch { }
         }
 
+        /// <summary>
+        /// Where a building's door would open for a given placement, computed from its blueprint with
+        /// the game's own PositionedEntrance.From, so no preview object is needed. False if the
+        /// building has no entrance.
+        /// </summary>
+        internal static bool TryDoorstep(BlockObjectSpec spec, Placement placement, out Vector3Int doorstep)
+        {
+            doorstep = default(Vector3Int);
+            try
+            {
+                var entranceSpec = spec.Entrance;
+                if (entranceSpec == null || !entranceSpec.HasEntrance) return false;
+
+                var positioned = PositionedEntrance.From(spec.GetBlocks(), entranceSpec, placement);
+                doorstep = positioned.DoorstepCoordinates;
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.Log("[TimberbornAI] doorstep calculation failed: " + Root(e).GetType().Name + ": " + Root(e).Message);
+                return false;
+            }
+        }
+
         private const int MaxPathTiles = 150;
 
         /// <summary>

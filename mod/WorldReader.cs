@@ -346,11 +346,14 @@ namespace TimberbornAI
         internal static bool DistrictDoorstep(out int x, out int y)
         {
             x = y = 0;
-            var world = AIWorldServices.Instance;
-            if (world == null) return false;
+            var core = AIGameServices.Instance;
+            if (core == null) return false;
 
-            foreach (var center in GameAccess.Enumerate(world.Districts.FinishedDistrictCenters))
+            // Read the district center the same way placed_buildings does: through its entity.
+            foreach (var center in GameAccess.Enumerate(core.Entities.Entities))
             {
+                if (!StateReader.EntityName(center).StartsWith("DistrictCenter", StringComparison.Ordinal)) continue;
+
                 try
                 {
                     var block = BlockOf(center);

@@ -135,7 +135,10 @@ namespace TimberbornAI
                 fullChecks++;
 
                 var placement = new Placement(new Vector3Int(c.X, c.Y, c.Z), c.Orientation, FlipMode.Unflipped);
-                if (!Placer.FullyValidWithDoor(build, blockSpec, placement, out _, out var doorstep, out var hasDoor)) continue;
+                if (!Placer.FullyValid(build, blockSpec, placement, out _)) continue;
+
+                // The door position comes from the blueprint, not from the preview, which does not report it reliably.
+                bool hasDoor = Placer.TryDoorstep(blockSpec, placement, out var doorstep);
 
                 c.HasDoor = hasDoor;
                 c.DoorX = doorstep.x;
