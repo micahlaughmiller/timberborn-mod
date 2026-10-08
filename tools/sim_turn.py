@@ -57,7 +57,8 @@ faction = state.get("faction") or "Folktails"
 buildings = state.get("placed_buildings") or []
 
 say("SIMULATED TURN (" + ("LIVE: buildings are placed" if LIVE else "dry run: nothing is built") + ")")
-say("faction=" + str(faction) + " time=" + short(state.get("time"), 200))
+say("faction=%s cycle=%s day=%s progress=%.2f speed=%s" % (
+    faction, state.get("cycle"), state.get("cycle_day"), state.get("cycle_progress") or 0, state.get("speed")))
 say("beavers=" + short(state.get("beavers"), 300))
 say("stock=" + short(state.get("stock"), 400))
 say("hazard: active=" + str(state.get("hazard_active")) + " approaching=" + str(state.get("hazard_approaching")))
