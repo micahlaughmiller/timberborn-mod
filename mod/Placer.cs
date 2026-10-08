@@ -90,8 +90,15 @@ namespace TimberbornAI
                             + (valid.Count > 0 ? ". It WOULD be valid at z=" + string.Join(",", valid) + ", so the surface height used here is off" : ". No nearby height is valid either, so something is on or under this spot"));
             }
 
+            // 4b. The game's full placement rules (a pump's intake must be on water, no flooded
+            // sites, reachability and so on). BlockValidator alone does not apply them.
+            if (!FullyValid(build, blockSpec, placement, out var rulesNote))
+                return Fail("the game does not allow " + prefab + " at " + x + "," + y + "," + z + " facing " + orientation
+                            + ": " + rulesNote + ". Try another orientation (Cw0, Cw90, Cw180, Cw270) or another spot.");
+
             if ((Json.Field(body, "dry_run") ?? "false").ToLowerInvariant() == "true")
-                return Ok("valid: " + prefab + " can be placed at " + x + "," + y + "," + z + " facing " + orientation + " (dry run, nothing created)");
+                return Ok("valid: " + prefab + " can be placed at " + x + "," + y + "," + z + " facing " + orientation + " (dry run, nothing created)"
+                          + (rulesNote != null ? " [" + rulesNote + "]" : ""));
 
             // 5. Create it. PlaceFinished buildings (for example paths) appear complete.
             try
@@ -110,6 +117,63 @@ namespace TimberbornAI
                 var root = Root(e);
                 return Fail("game refused to create " + prefab + ": " + root.GetType().Name + ": " + root.Message);
             }
+        }
+
+        /// <summary>
+        /// Runs the game's own preview validation: creates a throwaway preview at the placement,
+        /// asks BlockObjectValidationService, then discards the preview. On refusal, note holds
+        /// the game's message. If previews cannot be created, the check is skipped (not failed)
+        /// and note says so, because blocking every placement on our own limitation would be worse.
+        /// </summary>
+        private static bool FullyValid(AIBuildServices build, BlockObjectSpec spec, Placement placement, out string note)
+        {
+            note = null;
+            BlockObject preview = null;
+            try
+            {
+                preview = build.Factory.CreateAsPreview(spec, null, placement);
+
+                string message;
+                var previews = new List<Timberborn.BaseComponentSystem.BaseComponent> { preview };
+                if (build.Validation.AreValid(previews, out message)) return true;
+
+                note = string.IsNullOrEmpty(message) ? "its placement rules reject this spot" : message;
+                return false;
+            }
+            catch (Exception e)
+            {
+                Debug.Log("[TimberbornAI] preview validation unavailable: " + Root(e).GetType().Name + ": " + Root(e).Message);
+                note = "extra placement rules could not be checked";
+                return true;
+            }
+            finally
+            {
+                Discard(preview);
+            }
+        }
+
+        /// <summary>Removes a throwaway preview so it neither lingers on screen nor affects later checks.</summary>
+        private static void Discard(BlockObject preview)
+        {
+            if (preview == null) return;
+
+            try
+            {
+                var component = Components.Get(preview, typeof(Preview)) as Preview;
+                if (component != null)
+                {
+                    component.RemoveFromPreviewServices();
+                    component.Hide();
+                }
+            }
+            catch { }
+
+            try
+            {
+                var go = preview.GameObject;
+                if (go != null) UnityEngine.Object.Destroy(go);
+            }
+            catch { }
         }
 
         private const int MaxPathTiles = 150;

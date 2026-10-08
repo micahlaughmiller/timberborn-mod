@@ -146,6 +146,8 @@ namespace TimberbornAI
         public readonly BlockValidator Validator;
         public readonly ConstructionFactory Construction;
         public readonly TemplateCollectionService Templates;
+        public readonly BlockObjectFactory Factory;
+        public readonly BlockObjectValidationService Validation;
 
         public AIBuildServices(
             BuildingService buildings,
@@ -155,9 +157,13 @@ namespace TimberbornAI
             ISpecService specs,
             BlockValidator validator,
             ConstructionFactory construction,
-            TemplateCollectionService templates)
+            TemplateCollectionService templates,
+            BlockObjectFactory factory,
+            BlockObjectValidationService validation)
         {
             Templates = templates;
+            Factory = factory;
+            Validation = validation;
             Buildings = buildings;
             Unlocking = unlocking;
             Science = science;
