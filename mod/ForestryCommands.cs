@@ -82,8 +82,8 @@ namespace TimberbornAI
 
                 int fx0 = Math.Max(0, Math.Min(left, fromX) - 6), fx1 = Math.Min(size.x - 1, Math.Max(right, fromX) + 6);
                 int fy0 = Math.Max(0, Math.Min(top, fromY) - 6), fy1 = Math.Min(size.y - 1, Math.Max(bottom, fromY) + 6);
-                var field = Connector.WalkingDistances(build, world, fromX, fromY, fx0, fx1, fy0, fy1, false, anyLevel);
-                var anyField = anyLevel ? field : Connector.WalkingDistances(build, world, fromX, fromY, fx0, fx1, fy0, fy1, false, true);
+                var field = Connector.WalkingDistances(build, world, fromX, fromY, fx0, fx1, fy0, fy1, false, anyLevel, true);
+                var anyField = anyLevel ? field : Connector.WalkingDistances(build, world, fromX, fromY, fx0, fx1, fy0, fy1, false, true, true);
                 if (field == null)
                     return Fail("the start cell (" + fromX + "," + fromY + ") is not walkable; use the lumberjack flag's access_cell");
 

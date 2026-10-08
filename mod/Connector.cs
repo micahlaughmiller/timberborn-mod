@@ -247,13 +247,15 @@ namespace TimberbornAI
         /// </summary>
         internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
                                                                int tx, int ty, int minX, int maxX, int minY, int maxY,
-                                                               bool costed = false, bool useSlopes = true)
+                                                               bool costed = false, bool useSlopes = true, bool throughTrees = false)
         {
             if (!Placer.TryGetBlueprint(build, "Path", out var blueprint, out _)) return null;
             var pathSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
             if (pathSpec == null) return null;
 
             var existing = ExistingPaths();
+            // Beavers walk through trees and bushes even though a path tile cannot be placed on them.
+            var natural = throughTrees ? NaturalCells() : null;
             var cache = new Dictionary<long, Cell>();
 
             Cell Look(int x, int y)
@@ -273,6 +275,7 @@ namespace TimberbornAI
                                 new Placement(new Vector3Int(x, y, cell.Z), Orientation.Cw0, FlipMode.Unflipped));
                         }
                         catch { cell.Passable = false; }
+                        if (!cell.Passable && natural != null && natural.Contains(key)) cell.Passable = true;
                     }
                 }
                 cache[key] = cell;
@@ -338,6 +341,26 @@ namespace TimberbornAI
             }
 
             return dist;
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex NaturalName = new System.Text.RegularExpressions.Regex(
+            "Pine|Birch|Chestnut|Oak|Maple|Tree|Bush|Dandelion|Spadderdock|Cattail|Canola|Reed|Sapling",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>Cells holding only trees, bushes or other plants: not walkable for a path, but beavers pass through.</summary>
+        private static HashSet<long> NaturalCells()
+        {
+            var set = new HashSet<long>();
+            var core = AIGameServices.Instance;
+            if (core == null) return set;
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var name = StateReader.EntityName(entity);
+                if (name == null || !NaturalName.IsMatch(name)) continue;
+                if (!WorldReader.EntityCell(entity, out var c)) continue;
+                set.Add(Key(c.x, c.y));
+            }
+            return set;
         }
 
         /// <summary>Cells that already hold a Path, so the route can reuse them instead of paying for new tiles.</summary>
