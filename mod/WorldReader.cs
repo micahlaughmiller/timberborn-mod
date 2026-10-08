@@ -451,6 +451,7 @@ namespace TimberbornAI
                         + ",\"orientation\":" + Json.Str(block.Orientation.ToString())
                         + ",\"finished\":" + (block.IsFinished ? "true" : "false")
                         + extra
+                        + ",\"problems\":" + StatusReader.ProblemsJson(entity)
                         + ",\"access_cell\":" + access
                         + ",\"entrance\":" + entrance + "}");
                 if (items.Count >= 80) break;

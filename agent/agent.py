@@ -256,7 +256,11 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   including water for pumps and being reachable for flags. Use `get_buildings` for costs and `get_map`
   to understand the terrain. Heights in the map are surface levels.
 - `placed_buildings` in the snapshot lists what you have placed, with its facing, whether it is
-  finished, and its `access_cell`: the one free cell outside its door that a path must end on for beavers to get in. A path that
+  finished, and its `access_cell`: the one free cell outside its door that a path must end on for beavers to get in. `problems` lists the game's own warnings for that
+  building, exactly what a player sees as red icons: "Unconnected building", "Building unstaffed",
+  "Construction lacks materials", "No good selected". Check it after every placement. "Unconnected building"
+  means beavers cannot reach it: fix that first (a different spot on the same level as your paths, or
+  demolish and re-place it), because nothing else works until it is reachable. A path that
   stops beside a building does nothing.
 - get_map also returns an `objects` grid: a letter per cell naming what stands there (trees, berry
   bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
