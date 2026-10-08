@@ -134,6 +134,19 @@ TOOLS = [
         },
     },
     {
+        "name": "unlock",
+        "description": (
+            "Spend science points to unlock a building that is locked (get_buildings with include_locked shows "
+            "`unlocked`, `unlockable` and `science_cost`). Most of what comes after the basics, such as planks, "
+            "stairs, bigger storage, power and decorations, needs this. Science comes from the Inventor."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"prefab": {"type": "string"}},
+            "required": ["prefab"],
+        },
+    },
+    {
         "name": "set_gatherer",
         "description": (
             "Choose what a gatherer flag collects. A flag does nothing until a good is selected: its "
@@ -337,7 +350,14 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
      12 logs you get go to a pump; water is what keeps the colony alive.
   4. Then a SMALL WAREHOUSE (for berries and logs) and a SMALL TANK (to store water).
   5. Then exactly ONE INVENTOR, for science. Never build a second.
-  6. Then expand only as needed: housing, more pumps, more food, using what the game's own data tells you.
+  6. HOUSING. Lodges so every beaver has a home; inspect_building shows how many each holds, and the colony grows.
+  7. SCIENCE BUILDINGS, before production. Keep the inventor running and spend the points with `unlock` on what
+     moves you forward (check `science_cost` and `unlockable` in get_buildings with include_locked).
+  8. PRODUCTION buildings (planks, gears and what they need), only after science.
+  9. Then keep growing, round after round, across all of: decorations, well-being, power, production and food.
+     Keep water and food comfortably ahead of the population while you do it, and check what beavers need
+     (inspect_specs NeedSpec) so well-being buildings go where they matter.
+  10. Eventually, bots.
 - LEARN THE RULES FROM THE GAME, do not guess them. Call inspect_building on a building before you rely on what it
   needs or produces (workers, inputs, outputs, capacity), and call inspect_specs with type NeedSpec to learn what
   beavers need to survive and be happy. Let that decide how much of each thing to build and in what order.
