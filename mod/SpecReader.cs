@@ -101,7 +101,8 @@ namespace TimberbornAI
                 var id = Convert.ToString(GameAccess.Member(item, "Id")) ?? "";
                 int dot = id.LastIndexOf('.');
                 if (!string.IsNullOrEmpty(faction) && dot > 0 && !id.EndsWith("." + faction, StringComparison.OrdinalIgnoreCase)
-                    && (id.EndsWith(".Folktails") || id.EndsWith(".IronTeeth"))) continue;
+                    && (id.Contains(".Folktails") || id.Contains(".IronTeeth") || id.Contains(".Emberpelts"))
+                    && id.IndexOf("." + faction, StringComparison.OrdinalIgnoreCase) < 0) continue;
 
                 string Goods(string member)
                 {
