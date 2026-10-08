@@ -147,6 +147,7 @@ namespace TimberbornAI
         public readonly ConstructionFactory Construction;
         public readonly TemplateCollectionService Templates;
         public readonly EntityService EntityRemover;
+        public readonly Bindito.Core.IContainer Container;
         public readonly BlockObjectFactory Factory;
         public readonly BlockObjectValidationService Validation;
 
@@ -161,8 +162,10 @@ namespace TimberbornAI
             TemplateCollectionService templates,
             BlockObjectFactory factory,
             BlockObjectValidationService validation,
-            EntityService entityRemover)
+            EntityService entityRemover,
+            Bindito.Core.IContainer container)
         {
+            Container = container;
             EntityRemover = entityRemover;
             Templates = templates;
             Factory = factory;

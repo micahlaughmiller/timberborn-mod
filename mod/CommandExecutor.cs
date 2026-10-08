@@ -27,6 +27,12 @@ namespace TimberbornAI
                 case "demolish":    return Demolisher.Demolish(body);
                 case "set_gatherer": return GathererCommands.Select(body);
                 case "unlock":      return UnlockCommands.Unlock(body);
+                case "set_storage": return Management.SetStorage(body);
+                case "set_workers": return Management.SetWorkers(body);
+                case "set_priority": return Management.SetPriority(body);
+                case "apply_priorities": return Management.ApplyPriorities();
+                case "manage_workers": return Management.ManageWorkers();
+                case "set_work_hours": return Management.SetWorkHours(body);
                 case "mark_trees":  return ForestryCommands.Mark(body, true);
                 case "unmark_trees": return ForestryCommands.Mark(body, false);
                 case "set_speed":   return SetSpeed(body);

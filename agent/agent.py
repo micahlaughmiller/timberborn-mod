@@ -134,6 +134,89 @@ TOOLS = [
         },
     },
     {
+        "name": "consult_notes",
+        "description": (
+            "Read notes from experienced human players on a later-game topic, kept out of your main instructions to "
+            "save space: hydrology (dams, droughts, badtides), industry (power, metal, bots, ratios), food-and-wood, "
+            "wellbeing-and-population. Call with no topic to list them. They are unverified: check any number with "
+            "inspect_building or inspect_specs."
+        ),
+        "input_schema": {"type": "object", "properties": {"topic": {"type": "string"}}},
+    },
+    {
+        "name": "inspect_components",
+        "description": (
+            "List every component on one of your placed buildings (x and y from placed_buildings) with its readable "
+            "values and method names. A diagnostic: use it when set_storage, set_workers or set_priority fails, to see "
+            "what the building really has."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}},
+            "required": ["x", "y"],
+        },
+    },
+    {
+        "name": "set_storage",
+        "description": (
+            "Set what a warehouse, tank or pile holds. A new store holds nothing until you choose: put berries in the "
+            "food warehouse, Water in tanks, Log in the log store. x and y come from placed_buildings; good is a "
+            "partial name such as 'Berries', 'Water' or 'Log'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "good": {"type": "string"}},
+            "required": ["x", "y", "good"],
+        },
+    },
+    {
+        "name": "set_workers",
+        "description": (
+            "Set how many workers one building asks for (limited to its maximum). The district center should have 4 "
+            "workers unless food or water buildings need them, and never fewer than 2."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "count": {"type": "integer"}},
+            "required": ["x", "y", "count"],
+        },
+    },
+    {
+        "name": "set_priority",
+        "description": "Set one building's worker priority: VeryLow, Low, Normal, High or VeryHigh.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}, "priority": {"type": "string"}},
+            "required": ["x", "y", "priority"],
+        },
+    },
+    {
+        "name": "apply_priorities",
+        "description": (
+            "Set every building's worker priority from what it makes: food and water highest, then logs, then planks "
+            "(and beaver-powered power), then science, gears, scrap and badwater, then everything else. Call it after "
+            "placing new buildings."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "manage_workers",
+        "description": (
+            "Divide the adult beavers over the finished workplaces: the district center gets 4 workers unless food and "
+            "water buildings need them (never fewer than 2), food and water crews are filled first, then logs, planks, "
+            "science, gears, scrap, badwater and the rest. Call it whenever the population or the buildings change."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "set_work_hours",
+        "description": (
+            "Set the working day in hours (the game default is 16). Players raise it to 18 early, before beavers have "
+            "amenities to spend leisure time on, to get extra labor before the first drought."
+        ),
+        "input_schema": {"type": "object", "properties": {"hours": {"type": "integer"}}, "required": ["hours"]},
+    },
+    {
         "name": "unlock",
         "description": (
             "Spend science points to unlock a building that is locked (get_buildings with include_locked shows "
@@ -345,6 +428,17 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   times and grow it before expanding. When the warning appears, use what time is left to top up
   storage and finish what protects the colony. Never state the date of the next hazard in your
   notes, because you do not know it.
+- FIRST TURN, while the game is still paused: look at the map (reachable grid and objects), then set the working day
+  to 18 hours (set_work_hours) and put the district center's crew at 4 (set_workers on its x and y from
+  placed_buildings). Then start the build order. Do not unpause until the first flags are placed and connected.
+- STORES MUST BE TOLD WHAT TO HOLD. A new warehouse, tank or pile holds nothing until you call set_storage:
+  Water in tanks, Berries in the food warehouse, Log for the log store. Check it right after placing one.
+- KEEP THE CREWS RIGHT. After placing new buildings call apply_priorities, and call manage_workers whenever the
+  population or the buildings change: it keeps the district center at 4 workers unless food or water need them
+  (never below 2) and fills food and water crews first.
+- LATER-GAME NOTES. Dams, badtides, power, metal, ratios, bots, food and wood details are in consult_notes
+  (hydrology, industry, food-and-wood, wellbeing-and-population). Read the relevant one before you start on that
+  area. They are unverified player notes; the game's own data wins.
 - BUILD ORDER. Follow this order, and do not skip ahead until each step is working (check `problems` and
   your stock numbers to confirm):
   1. LUMBERJACK FLAGS first. They are free. Put them on ground marked '#' in the `reachable` grid, right next to
@@ -437,6 +531,25 @@ def call_mod(path, payload=None, timeout=35):
         return {"ok": False, "error": f"bad response from mod: {exc}"}
 
 
+KNOWLEDGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge")
+
+
+def read_notes(topic):
+    """Player notes kept out of the always-sent prompt. Unverified; the game's own data wins."""
+    if not os.path.isdir(KNOWLEDGE_DIR):
+        return {"ok": False, "error": "no notes folder next to agent.py"}
+    topics = sorted(f[:-3] for f in os.listdir(KNOWLEDGE_DIR) if f.endswith(".md") and f != "README.md")
+    if not topic:
+        return {"ok": True, "topics": topics, "note": "call again with topic set to one of these"}
+    safe = os.path.basename(str(topic)).replace(".md", "")
+    path = os.path.join(KNOWLEDGE_DIR, safe + ".md")
+    if safe == "README" or not os.path.isfile(path):
+        return {"ok": False, "error": f"no notes on '{topic}'", "topics": topics}
+    with open(path, encoding="utf-8") as fh:
+        return {"ok": True, "topic": safe, "notes": fh.read(),
+                "caution": "player notes, unverified; confirm numbers with inspect_building / inspect_specs"}
+
+
 def run_tool(name, args):
     """Route one tool call to the right mod endpoint."""
     if name == "get_map":
@@ -444,6 +557,10 @@ def run_tool(name, args):
         return call_mod("/map" + ("?" + query if query else ""))
     if name == "get_buildings":
         return call_mod("/buildings" + ("?all=1" if args.get("include_locked") else ""))
+    if name == "consult_notes":
+        return read_notes(args.get("topic"))
+    if name == "inspect_components":
+        return call_mod("/components?" + urllib.parse.urlencode({"x": args.get("x"), "y": args.get("y")}))
     if name == "inspect_building":
         return call_mod("/spec?" + urllib.parse.urlencode({"name": args.get("name", "")}))
     if name == "inspect_specs":
