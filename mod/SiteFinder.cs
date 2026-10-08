@@ -67,6 +67,8 @@ namespace TimberbornAI
             // (buildings that stand in water or against a bank sit lower than the shore).
             var candidates = new List<Candidate>();
             int blockChecks = 0;
+            int blockedDoors = 0;
+            var entranceCells = WorldReader.EntranceCells();
             foreach (Orientation orientation in Enum.GetValues(typeof(Orientation)))
             {
                 for (int y = y0; y < y0 + h; y++)
@@ -86,6 +88,12 @@ namespace TimberbornAI
                             bool valid;
                             try { valid = build.Validator.BlocksValid(blockSpec, placement); }
                             catch { valid = false; }
+
+                            if (valid && CoversAny(blockSpec, placement, entranceCells))
+                            {
+                                blockedDoors++;
+                                break; // would sit in front of an existing door
+                            }
 
                             if (valid)
                             {
@@ -155,20 +163,39 @@ namespace TimberbornAI
             var items = good.Select(c => "{\"x\":" + c.X + ",\"y\":" + c.Y + ",\"z\":" + c.Z
                                          + ",\"orientation\":" + Json.Str(c.Orientation.ToString())
                                          + ",\"distance\":" + c.Distance
-                                         + (c.HasDoor ? ",\"doorstep\":{\"x\":" + c.DoorX + ",\"y\":" + c.DoorY + "}" : "")
+                                         + (c.HasDoor && c.Walk >= 0 ? ",\"doorstep\":{\"x\":" + c.DoorX + ",\"y\":" + c.DoorY + "}" : "")
                                          + (c.Walk >= 0 ? ",\"walk_steps_to_settlement\":" + c.Walk : "")
                                          + "}");
 
             return "{\"ok\":true,\"prefab\":" + Json.Str(prefab)
                  + ",\"window\":{\"x\":" + x0 + ",\"y\":" + y0 + ",\"w\":" + w + ",\"h\":" + h + "}"
                  + ",\"sorted_by_distance_to\":{\"x\":" + nearX + ",\"y\":" + nearY + "}"
-                 + ",\"block_checks\":" + blockChecks + ",\"passed_block_rules\":" + candidates.Count + ",\"full_checks\":" + fullChecks
+                 + ",\"skipped_in_front_of_doors\":" + blockedDoors + ",\"block_checks\":" + blockChecks + ",\"passed_block_rules\":" + candidates.Count + ",\"full_checks\":" + fullChecks
                  + ",\"sites\":[" + string.Join(",", items) + "]"
                  + (good.Count == 0 ? ",\"note\":" + Json.Str(candidates.Count == 0
                         ? "no spot in this window passes the block rules; try a bigger or different window"
                         : "spots pass the block rules but none passed the full placement rules in the nearest " + fullChecks + "; widen the window or move near_x/near_y")
                         : "")
                  + "}";
+        }
+
+        /// <summary>True if any cell of the building's footprint at this placement is one of the given (x, y) cells.</summary>
+        private static bool CoversAny(BlockObjectSpec spec, Placement placement, HashSet<long> cells)
+        {
+            if (cells.Count == 0) return false;
+
+            try
+            {
+                foreach (object block in spec.GetBlocks(placement))
+                {
+                    if (GameAccess.MemberAny(block, "Coordinates", "Coordinate", "Position") is Vector3Int v
+                        && cells.Contains((long)v.y * 100000L + v.x))
+                        return true;
+                }
+            }
+            catch { }
+
+            return false;
         }
 
         private static Vector3Int DistrictCenter(AIWorldServices world, Vector3Int size)

@@ -310,6 +310,38 @@ namespace TimberbornAI
             return blockObject != null;
         }
 
+        /// <summary>
+        /// The (x, y) cells of every placed building's entrance and doorstep. New buildings must not
+        /// be put on these, or they block a door that paths need to reach.
+        /// </summary>
+        internal static HashSet<long> EntranceCells()
+        {
+            var set = new HashSet<long>();
+            var core = AIGameServices.Instance;
+            if (core == null) return set;
+
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var name = StateReader.EntityName(entity);
+                if (name.IndexOf('.') < 0) continue; // buildings are named like "SmallWarehouse.Folktails"
+
+                try
+                {
+                    var block = BlockOf(entity);
+                    if (block == null || !block.HasEntrance) continue;
+
+                    var entrance = block.PositionedEntrance;
+                    foreach (var field in new[] { "Coordinates", "DoorstepCoordinates" })
+                    {
+                        if (GameAccess.Member(entrance, field) is Vector3Int v) set.Add((long)v.y * 100000L + v.x);
+                    }
+                }
+                catch { }
+            }
+
+            return set;
+        }
+
         /// <summary>The doorstep cell of the first finished district center, where a path to the settlement must end.</summary>
         internal static bool DistrictDoorstep(out int x, out int y)
         {
