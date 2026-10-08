@@ -202,6 +202,10 @@ namespace TimberbornAI
             var core = AIGameServices.Instance;
             if (core == null) return result;
 
+            // Safe mode: an empty file named no-slopes.flag next to the DLL makes every search ignore slopes, so
+            // nothing is placed that depends on crossing one. Use it if the game does not treat a slope as a road.
+            if (Flags.Has("no-slopes.flag")) return result;
+
             void Link(long a, long b)
             {
                 if (!result.TryGetValue(a, out var list)) result[a] = list = new List<long>();
