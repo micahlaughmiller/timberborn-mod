@@ -83,7 +83,8 @@ TOOLS = [
             "orientations and applies the game's full placement rules (a water pump must have its "
             "intake on water, flags must be reachable). Returns a list of {x, y, z, orientation} sorted "
             "by distance to near_x/near_y (default: the district center). Each spot already uses the facing whose "
-            "door opens closest to that point, and includes the building's doorstep cell. ALWAYS use this instead of "
+            "door gives the shortest real walk to the district center (walk_steps_to_settlement), going around trees, "
+            "water and cliffs, and includes the building's doorstep cell. ALWAYS use this instead of "
             "guessing coordinates, then build at one of the returned spots with the same orientation."
         ),
         "input_schema": {

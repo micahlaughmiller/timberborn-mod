@@ -310,6 +310,31 @@ namespace TimberbornAI
             return blockObject != null;
         }
 
+        /// <summary>The doorstep cell of the first finished district center, where a path to the settlement must end.</summary>
+        internal static bool DistrictDoorstep(out int x, out int y)
+        {
+            x = y = 0;
+            var world = AIWorldServices.Instance;
+            if (world == null) return false;
+
+            foreach (var center in GameAccess.Enumerate(world.Districts.FinishedDistrictCenters))
+            {
+                try
+                {
+                    var block = BlockOf(center);
+                    if (block != null && block.HasEntrance
+                        && GameAccess.Member(block.PositionedEntrance, "DoorstepCoordinates") is Vector3Int door)
+                    {
+                        x = door.x;
+                        y = door.y;
+                        return true;
+                    }
+                }
+                catch { }
+            }
+            return false;
+        }
+
         /// <summary>The BlockObject (position, orientation, entrance) of an entity, or null if it has none.</summary>
         private static Timberborn.BlockSystem.BlockObject BlockOf(object entity)
         {

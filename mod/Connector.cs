@@ -153,7 +153,80 @@ namespace TimberbornAI
                  + ",\"failed_tiles\":[" + string.Join(",", failed.Take(20)) + "]}";
         }
 
-        private static long Key(int x, int y) => (long)y * 100000L + x;
+        internal static long Key(int x, int y) => (long)y * 100000L + x;
+
+        /// <summary>
+        /// Walking distance in steps from the target cell to every cell it can reach inside the window,
+        /// by the same rules the connector uses (a cell must be an existing path or able to hold one,
+        /// and neighbours may differ by at most one level). Returns null if the target cell itself
+        /// is not walkable. One search serves any number of candidate doors.
+        /// </summary>
+        internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
+                                                               int tx, int ty, int minX, int maxX, int minY, int maxY)
+        {
+            if (!Placer.TryGetBlueprint(build, "Path", out var blueprint, out _)) return null;
+            var pathSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
+            if (pathSpec == null) return null;
+
+            var existing = ExistingPaths();
+            var cache = new Dictionary<long, Cell>();
+
+            Cell Look(int x, int y)
+            {
+                long key = Key(x, y);
+                if (cache.TryGetValue(key, out var known)) return known;
+
+                var cell = new Cell { Z = Placer.SurfaceZ(world, x, y) };
+                if (cell.Z >= 0)
+                {
+                    if (existing.Contains(key)) { cell.Passable = true; cell.Exists = true; }
+                    else
+                    {
+                        try
+                        {
+                            cell.Passable = build.Validator.BlocksValid(pathSpec,
+                                new Placement(new Vector3Int(x, y, cell.Z), Orientation.Cw0, FlipMode.Unflipped));
+                        }
+                        catch { cell.Passable = false; }
+                    }
+                }
+                cache[key] = cell;
+                return cell;
+            }
+
+            if (!Look(tx, ty).Passable) return null;
+
+            var dist = new Dictionary<long, int> { [Key(tx, ty)] = 0 };
+            var queue = new Queue<long>();
+            queue.Enqueue(Key(tx, ty));
+
+            int[] dx = { 1, -1, 0, 0 };
+            int[] dy = { 0, 0, 1, -1 };
+
+            while (queue.Count > 0)
+            {
+                long current = queue.Dequeue();
+                int cx = (int)(current % 100000L), cy = (int)(current / 100000L);
+                int currentZ = Look(cx, cy).Z;
+
+                for (int i = 0; i < 4; i++)
+                {
+                    int nx = cx + dx[i], ny = cy + dy[i];
+                    if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
+
+                    long nextKey = Key(nx, ny);
+                    if (dist.ContainsKey(nextKey)) continue;
+
+                    var next = Look(nx, ny);
+                    if (!next.Passable || Math.Abs(next.Z - currentZ) > 1) continue;
+
+                    dist[nextKey] = dist[current] + 1;
+                    queue.Enqueue(nextKey);
+                }
+            }
+
+            return dist;
+        }
 
         /// <summary>Cells that already hold a Path, so the route can reuse them instead of paying for new tiles.</summary>
         private static HashSet<long> ExistingPaths()

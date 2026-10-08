@@ -100,6 +100,22 @@ namespace TimberbornAI
             // 2. Full rules on the nearest candidates only.
             // The four facings of one cell are checked together, then only the facing whose door opens
             // closest to the target is kept: a human turns the building so its door faces the road.
+            // Real walking distances to the settlement, from one search outward from its doorstep
+            // (or to_x/to_y if given). Choosing the facing by actual walk, not by straight-line
+            // direction, accounts for trees, water and cliffs that make a short line a long walk.
+            Dictionary<long, int> walk = null;
+            int toX, toY;
+            bool haveTarget = WorldReader.DistrictDoorstep(out toX, out toY);
+            toX = Json.Int(body, "to_x", toX);
+            toY = Json.Int(body, "to_y", toY);
+            if (haveTarget || (Json.Int(body, "to_x", int.MinValue) != int.MinValue && Json.Int(body, "to_y", int.MinValue) != int.MinValue))
+            {
+                int fx0 = Math.Max(0, Math.Min(x0, toX) - 8), fx1 = Math.Min(size.x - 1, Math.Max(x0 + w, toX) + 8);
+                int fy0 = Math.Max(0, Math.Min(y0, toY) - 8), fy1 = Math.Min(size.y - 1, Math.Max(y0 + h, toY) + 8);
+                if (fx1 - fx0 + 1 <= 110 && fy1 - fy0 + 1 <= 110)
+                    walk = Connector.WalkingDistances(build, world, toX, toY, fx0, fx1, fy0, fy1);
+            }
+
             var passing = new List<Candidate>();
             var cellsSeen = new HashSet<long>();
             int fullChecks = 0;
@@ -117,6 +133,14 @@ namespace TimberbornAI
                 c.DoorX = doorstep.x;
                 c.DoorY = doorstep.y;
                 c.DoorDistance = hasDoor ? Math.Abs(doorstep.x - nearX) + Math.Abs(doorstep.y - nearY) : 0;
+
+                if (hasDoor && walk != null)
+                {
+                    // A door that opens onto ground nothing can cross cannot be connected at all.
+                    if (!walk.TryGetValue(Connector.Key(doorstep.x, doorstep.y), out var steps)) continue;
+                    c.DoorDistance = steps;
+                    c.Walk = steps;
+                }
                 passing.Add(c);
                 cellsSeen.Add(cellKey);
             }
@@ -132,6 +156,7 @@ namespace TimberbornAI
                                          + ",\"orientation\":" + Json.Str(c.Orientation.ToString())
                                          + ",\"distance\":" + c.Distance
                                          + (c.HasDoor ? ",\"doorstep\":{\"x\":" + c.DoorX + ",\"y\":" + c.DoorY + "}" : "")
+                                         + (c.Walk >= 0 ? ",\"walk_steps_to_settlement\":" + c.Walk : "")
                                          + "}");
 
             return "{\"ok\":true,\"prefab\":" + Json.Str(prefab)
@@ -159,6 +184,7 @@ namespace TimberbornAI
         {
             public int X, Y, Z, Distance;
             public int DoorX, DoorY, DoorDistance;
+            public int Walk = -1; // steps from the doorstep to the settlement, -1 if not computed
             public bool HasDoor;
             public Orientation Orientation;
         }
