@@ -249,6 +249,10 @@ namespace TimberbornAI
             foreach (var level in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(cx, cy))))
                 centerSurface = Math.Max(centerSurface, HeightOf(level));
 
+            string reachJson;
+            try { reachJson = ReachLayer(world, x0, y0, w, h); }
+            catch (Exception e) { reachJson = "{\"error\":" + Json.Str(e.GetType().Name + ": " + e.Message) + "}"; }
+
             string objectsJson, legendJson;
             try { ObjectLayer(x0, y0, w, h, out objectsJson, out legendJson); }
             catch (Exception e)
@@ -259,10 +263,11 @@ namespace TimberbornAI
 
             return "{\"center\":{\"x\":" + cx + ",\"y\":" + cy + ",\"surface_z\":" + centerSurface + "}"
                  + ",\"objects\":" + objectsJson + ",\"object_legend\":" + legendJson
+                 + ",\"reachable\":" + reachJson
                  + ",\"origin\":{\"x\":" + x0 + ",\"y\":" + y0 + "},\"width\":" + w + ",\"height\":" + h
                  + ",\"map_size\":{\"x\":" + size.x + ",\"y\":" + size.y + ",\"z\":" + size.z + "}"
                  + ",\"height_element_type\":" + Json.Str(heightType)
-                 + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~; objects: a letter per kind (see object_legend), . = nothing on the cell\""
+                 + ",\"legend\":\"rows are y ascending, columns x ascending; heights base36, - none; water ~; objects: a letter per kind (see object_legend), . = nothing on the cell; reachable: # = beavers can walk here from the district center on one level, . = not reachable (other level, water, trees)\""
                  + ",\"heights\":[" + string.Join(",", heightRows) + "]"
                  + ",\"water\":[" + string.Join(",", waterRows) + "]}";
         }
@@ -510,6 +515,69 @@ namespace TimberbornAI
 
             rowsJson = "[" + string.Join(",", rows) + "]";
             legendJson = "{" + string.Join(",", legend) + "}";
+        }
+
+        /// <summary>
+        /// Rows of '#' for cells beavers can walk to from the district center on one level and '.' for
+        /// the rest. This is the level analysis: ground that is higher, lower, across water or behind
+        /// trees is '.', and nothing placed there can be reached by a path.
+        /// </summary>
+        private static string ReachLayer(AIWorldServices world, int x0, int y0, int w, int h)
+        {
+            var build = AIBuildServices.Instance;
+            if (build == null || !DistrictDoorstep(out var tx, out var ty)) return "null";
+
+            var size = world.Terrain.Size;
+            int minX = Math.Max(0, Math.Min(x0, tx) - 4), maxX = Math.Min(size.x - 1, Math.Max(x0 + w, tx) + 4);
+            int minY = Math.Max(0, Math.Min(y0, ty) - 4), maxY = Math.Min(size.y - 1, Math.Max(y0 + h, ty) + 4);
+            if (maxX - minX + 1 > 110 || maxY - minY + 1 > 110) return "null";
+
+            var field = Connector.WalkingDistances(build, world, tx, ty, minX, maxX, minY, maxY);
+            if (field == null) return "null";
+
+            var rows = new List<string>();
+            for (int y = y0; y < y0 + h; y++)
+            {
+                var row = new StringBuilder();
+                for (int x = x0; x < x0 + w; x++) row.Append(field.ContainsKey(Connector.Key(x, y)) ? '#' : '.');
+                rows.Add(Json.Str(row.ToString()));
+            }
+            return "[" + string.Join(",", rows) + "]";
+        }
+
+        /// <summary>
+        /// Where entities whose name contains the given text are: position, height, facing. For finding the
+        /// natural Slope pieces that join levels, or checking where a building ended up.
+        /// </summary>
+        public static string Find(NameValueCollection q)
+        {
+            var core = AIGameServices.Instance;
+            if (core == null) throw new InvalidOperationException("game services not bound");
+
+            var needle = q == null ? null : q["name"];
+            if (string.IsNullOrEmpty(needle)) throw new ArgumentException("pass ?name=<part of an entity name>, for example ?name=Slope");
+            int max = Math.Max(1, Math.Min(200, Int(q, "max", 60)));
+
+            var items = new List<string>();
+            int total = 0;
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var name = StateReader.EntityName(entity);
+                if (name.IndexOf(needle, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+                var block = BlockOf(entity);
+                if (block == null) continue;
+
+                total++;
+                if (items.Count >= max) continue;
+
+                var at = block.Coordinates;
+                items.Add("{\"name\":" + Json.Str(name) + ",\"x\":" + at.x + ",\"y\":" + at.y + ",\"z\":" + at.z
+                          + ",\"orientation\":" + Json.Str(block.Orientation.ToString())
+                          + ",\"base_z\":" + block.BaseZ + "}");
+            }
+
+            return "{\"total\":" + total + ",\"shown\":" + items.Count + ",\"found\":[" + string.Join(",", items) + "]}";
         }
 
         /// <summary>Building templates with unlock state. Unlocked only unless all=1.</summary>

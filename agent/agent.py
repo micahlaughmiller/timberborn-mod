@@ -35,7 +35,8 @@ TOOLS = [
             "Read a window of the map. Returns height rows (one base-36 character per "
             "cell: the surface level, '-' means no terrain) and water rows ('~' = water, "
             "'.' = none). Rows go y ascending, columns x ascending, starting at "
-            "origin. Max 48x48. With no arguments it centres on the district center."
+            "origin. Max 48x48. With no arguments it centres on the district center. Also returns an objects grid and a "
+            "`reachable` grid (# = beavers can walk there from the district center on one level)."
         ),
         "input_schema": {
             "type": "object",
@@ -266,6 +267,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
   flag only helps if there are trees close to it, and a gatherer flag only if there are berry bushes
   close to it. Check the grid; do not guess where the trees are.
+- get_map also returns a `reachable` grid: '#' marks cells beavers can walk to from the district center on one
+  level, '.' marks everything else (higher or lower ground, across water, behind trees). READ IT BEFORE DECIDING
+  ANYTHING. Only '#' ground can ever be connected to your settlement, so choose lumberjack flags, gatherer flags and
+  buildings on or right beside '#' cells, and trees that touch '#' ground. Trees on '.' ground cannot be cut.
 - Paths only connect tiles on the SAME level. A cliff of even one level is a barrier: a building on higher
   or lower ground than the path network cannot be reached, and trees up a cliff cannot be cut. Compare
   the height numbers in the map and keep flags, trees and buildings on the same level as the district.
