@@ -126,12 +126,30 @@ namespace TimberbornAI
         /// and note says so, because blocking every placement on our own limitation would be worse.
         /// </summary>
         internal static bool FullyValid(AIBuildServices build, BlockObjectSpec spec, Placement placement, out string note)
+            => FullyValidWithDoor(build, spec, placement, out note, out _, out _);
+
+        /// <summary>As FullyValid, also reporting where the door's doorstep would be for this placement.</summary>
+        internal static bool FullyValidWithDoor(AIBuildServices build, BlockObjectSpec spec, Placement placement,
+                                                out string note, out Vector3Int doorstep, out bool hasDoor)
         {
             note = null;
+            doorstep = default(Vector3Int);
+            hasDoor = false;
             BlockObject preview = null;
             try
             {
                 preview = build.Factory.CreateAsPreview(spec, null, placement);
+
+                // Where the door would open, read off the preview before it is discarded.
+                try
+                {
+                    if (preview.HasEntrance && GameAccess.Member(preview.PositionedEntrance, "DoorstepCoordinates") is Vector3Int door)
+                    {
+                        doorstep = door;
+                        hasDoor = true;
+                    }
+                }
+                catch { }
 
                 string message;
                 var previews = new List<Timberborn.BaseComponentSystem.BaseComponent> { preview };

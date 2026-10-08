@@ -98,20 +98,41 @@ namespace TimberbornAI
             }
 
             // 2. Full rules on the nearest candidates only.
-            var good = new List<Candidate>();
+            // The four facings of one cell are checked together, then only the facing whose door opens
+            // closest to the target is kept: a human turns the building so its door faces the road.
+            var passing = new List<Candidate>();
+            var cellsSeen = new HashSet<long>();
             int fullChecks = 0;
-            foreach (var c in candidates.OrderBy(c => c.Distance))
+            foreach (var c in candidates.OrderBy(c => c.Distance).ThenBy(c => c.X).ThenBy(c => c.Y))
             {
-                if (good.Count >= wanted || fullChecks >= MaxFullChecks) break;
+                long cellKey = ((long)c.Y * 100000L + c.X) * 100L + c.Z;
+                if (!cellsSeen.Contains(cellKey) && cellsSeen.Count >= wanted) continue; // enough cells; finish only the ones already started
+                if (fullChecks >= MaxFullChecks) break;
                 fullChecks++;
 
                 var placement = new Placement(new Vector3Int(c.X, c.Y, c.Z), c.Orientation, FlipMode.Unflipped);
-                if (Placer.FullyValid(build, blockSpec, placement, out _)) good.Add(c);
+                if (!Placer.FullyValidWithDoor(build, blockSpec, placement, out _, out var doorstep, out var hasDoor)) continue;
+
+                c.HasDoor = hasDoor;
+                c.DoorX = doorstep.x;
+                c.DoorY = doorstep.y;
+                c.DoorDistance = hasDoor ? Math.Abs(doorstep.x - nearX) + Math.Abs(doorstep.y - nearY) : 0;
+                passing.Add(c);
+                cellsSeen.Add(cellKey);
             }
+
+            var good = passing
+                .GroupBy(c => ((long)c.Y * 100000L + c.X) * 100L + c.Z)
+                .Select(g => g.OrderBy(c => c.DoorDistance).First())
+                .OrderBy(c => c.Distance).ThenBy(c => c.DoorDistance)
+                .Take(wanted)
+                .ToList();
 
             var items = good.Select(c => "{\"x\":" + c.X + ",\"y\":" + c.Y + ",\"z\":" + c.Z
                                          + ",\"orientation\":" + Json.Str(c.Orientation.ToString())
-                                         + ",\"distance\":" + c.Distance + "}");
+                                         + ",\"distance\":" + c.Distance
+                                         + (c.HasDoor ? ",\"doorstep\":{\"x\":" + c.DoorX + ",\"y\":" + c.DoorY + "}" : "")
+                                         + "}");
 
             return "{\"ok\":true,\"prefab\":" + Json.Str(prefab)
                  + ",\"window\":{\"x\":" + x0 + ",\"y\":" + y0 + ",\"w\":" + w + ",\"h\":" + h + "}"
@@ -137,6 +158,8 @@ namespace TimberbornAI
         private sealed class Candidate
         {
             public int X, Y, Z, Distance;
+            public int DoorX, DoorY, DoorDistance;
+            public bool HasDoor;
             public Orientation Orientation;
         }
     }
