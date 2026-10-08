@@ -149,7 +149,9 @@ TOOLS = [
         "description": (
             "Mark a rectangle (corners x1,y1 and x2,y2, each side at most 40 cells) for tree cutting. "
             "Lumberjack flags only cut trees inside marked areas. Find trees with get_map's objects "
-            "grid. The reply reports how many marked cells actually have trees on them."
+            "grid. Pass from_x/from_y = the lumberjack flag's access_cell and only cells a beaver can actually walk to "
+            "from the flag are marked (trees up a cliff or across water cannot be cut). The reply reports how many "
+            "marked cells have trees and how many were skipped as unreachable."
         ),
         "input_schema": {
             "type": "object",
@@ -158,6 +160,9 @@ TOOLS = [
                 "y1": {"type": "integer"},
                 "x2": {"type": "integer"},
                 "y2": {"type": "integer"},
+                "from_x": {"type": "integer", "description": "access_cell x of the lumberjack flag these trees are for"},
+                "from_y": {"type": "integer", "description": "access_cell y of the lumberjack flag"},
+                "max_steps": {"type": "integer", "description": "how far a beaver may walk from the flag, default 30"},
             },
             "required": ["x1", "y1", "x2", "y2"],
         },
@@ -221,13 +226,16 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
   flag only helps if there are trees close to it, and a gatherer flag only if there are berry bushes
   close to it. Check the grid; do not guess where the trees are.
+- Paths only connect tiles on the SAME level. A cliff of even one level is a barrier: a building on higher
+  or lower ground than the path network cannot be reached, and trees up a cliff cannot be cut. Compare
+  the height numbers in the map and keep flags, trees and buildings on the same level as the district.
 - Beavers walk and haul along paths. A building with no path to the district center will never be
   built or worked, and the game shows "Unconnected building" for it. After placing anything, call
   `connect` from that building's `access_cell` (in placed_buildings) to the district center's
   `access_cell`. Do not hand-draw routes with build_path unless connect fails.
   Read the reply: it says how many tiles were new, and whether any could not be placed.
 - A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
-  is not enough: call mark_trees on a rectangle of trees close to the flag (the reply says how many
+  is not enough: call mark_trees on a rectangle of trees close to the flag, passing the flag's access_cell as from_x/from_y (the reply says how many
   of the marked cells have trees; if that is 0 you picked bare ground). Keep the marked area near
   the flag and connected by path, or the lumberjacks walk too far to be useful.
 - A placed building is only a construction site. Beavers build it after the materials are delivered

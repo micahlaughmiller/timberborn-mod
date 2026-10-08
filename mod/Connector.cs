@@ -79,7 +79,7 @@ namespace TimberbornAI
             if (!startCell.Passable) return Placer.Fail("the start cell (" + x1 + "," + y1 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
             if (!goalCell.Passable) return Placer.Fail("the end cell (" + x2 + "," + y2 + ") cannot hold a path (occupied or no terrain). Use the building's access_cell from placed_buildings (the free cell outside its door).");
 
-            // 0-1 breadth-first search: existing tiles cost 0, new tiles cost 1.
+            // 0-1 breadth-first search: existing tiles cost 0, new tiles cost 1. Steps must stay on one level: the game does not connect paths across a height difference (a flag one level up was unreachable).
             var dist = new Dictionary<long, int>();
             var previous = new Dictionary<long, long>();
             var queue = new LinkedList<long>();
@@ -104,7 +104,7 @@ namespace TimberbornAI
                     if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
 
                     var next = Look(nx, ny);
-                    if (!next.Passable || Math.Abs(next.Z - currentZ) > 1) continue;
+                    if (!next.Passable || next.Z != currentZ) continue;
 
                     int stepCost = next.Exists ? 0 : 1;
                     int newDist = dist[current] + stepCost;
@@ -121,7 +121,7 @@ namespace TimberbornAI
 
             if (!dist.ContainsKey(goal))
                 return Placer.Fail("no walkable route from (" + x1 + "," + y1 + ") to (" + x2 + "," + y2 + ") within "
-                                   + (maxX - minX + 1) + "x" + (maxY - minY + 1) + " cells. Trees, water, other buildings or steep ground are in the way. "
+                                   + (maxX - minX + 1) + "x" + (maxY - minY + 1) + " cells. Trees, water, other buildings or a change of ground level are in the way (paths cannot climb between levels). "
                                    + "Clear trees with mark_trees or move one of the buildings.");
 
             var route = new List<long>();
@@ -158,7 +158,7 @@ namespace TimberbornAI
         /// <summary>
         /// Walking distance in steps from the target cell to every cell it can reach inside the window,
         /// by the same rules the connector uses (a cell must be an existing path or able to hold one,
-        /// and neighbours may differ by at most one level). Returns null if the target cell itself
+        /// and neighbours must be on the same level). Returns null if the target cell itself
         /// is not walkable. One search serves any number of candidate doors.
         /// </summary>
         internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
@@ -218,7 +218,7 @@ namespace TimberbornAI
                     if (dist.ContainsKey(nextKey)) continue;
 
                     var next = Look(nx, ny);
-                    if (!next.Passable || Math.Abs(next.Z - currentZ) > 1) continue;
+                    if (!next.Passable || next.Z != currentZ) continue;
 
                     dist[nextKey] = dist[current] + 1;
                     queue.Enqueue(nextKey);
