@@ -327,6 +327,9 @@ namespace TimberbornAI
                 var name = StateReader.EntityName(entity);
                 if (!names.Contains(name) || name == "Path") continue;
 
+                // The district center keeps the game's own priority: its crew builds and hauls for everything else.
+                if (name.StartsWith("DistrictCenter", StringComparison.Ordinal)) continue;
+
                 var tier = TierFor(Category(name));
                 if (TryApplyPriority(entity, tier, out var message))
                 {
@@ -530,7 +533,20 @@ namespace TimberbornAI
                     }
                 }
 
-                attempts.Add(type.Name + " found but nothing to set; members: " + string.Join(", ", MethodsOf(type).Select(Signature).Take(25)));
+                foreach (var field in type.GetFields(Any))
+                {
+                    bool numeric = field.FieldType == typeof(int) || field.FieldType == typeof(float);
+                    if (numeric && !field.IsInitOnly && field.Name.IndexOf("hours", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        var before = field.GetValue(instance);
+                        field.SetValue(instance, field.FieldType == typeof(int) ? (object)hours : (float)hours);
+                        return Placer.Ok("working hours field " + field.Name + " changed from " + before + " to " + hours
+                                         + " (it may only take effect from the next day)");
+                    }
+                }
+
+                attempts.Add(type.Name + " found but nothing to set; fields: "
+                             + string.Join(", ", type.GetFields(Any).Select(f => f.FieldType.Name + " " + f.Name)) + "; members: " + string.Join(", ", MethodsOf(type).Select(Signature).Take(25)));
             }
 
             return Fail("could not change the working hours. " + string.Join(" | ", attempts));

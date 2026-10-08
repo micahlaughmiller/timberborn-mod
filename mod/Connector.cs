@@ -247,7 +247,7 @@ namespace TimberbornAI
         /// </summary>
         internal static Dictionary<long, int> WalkingDistances(AIBuildServices build, AIWorldServices world,
                                                                int tx, int ty, int minX, int maxX, int minY, int maxY,
-                                                               bool costed = false)
+                                                               bool costed = false, bool useSlopes = true)
         {
             if (!Placer.TryGetBlueprint(build, "Path", out var blueprint, out _)) return null;
             var pathSpec = blueprint.GetSpec(typeof(BlockObjectSpec)) as BlockObjectSpec;
@@ -282,7 +282,7 @@ namespace TimberbornAI
             if (!Look(tx, ty).Passable) return null;
 
             var dist = new Dictionary<long, int> { [Key(tx, ty)] = 0 };
-            var bridges = SlopeBridges(world);
+            var bridges = useSlopes ? SlopeBridges(world) : new Dictionary<long, List<long>>();
 
             // Label-correcting search on a deque. By default every step costs 1, so the result is a walking
             // distance in steps. In costed mode a step onto an existing path tile costs 0 and onto bare
