@@ -137,7 +137,7 @@ TOOLS = [
         "name": "consult_notes",
         "description": (
             "Read notes from experienced human players on a later-game topic, kept out of your main instructions to "
-            "save space: hydrology (dams, droughts, badtides), industry (power, metal, bots, ratios), food-and-wood, "
+            "save space: hydrology (dams, droughts, badtides), industry (power, metal, bots, ratios), recipes, food-and-wood, "
             "wellbeing-and-population. Call with no topic to list them. They are unverified: check any number with "
             "inspect_building or inspect_specs."
         ),

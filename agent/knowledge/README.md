@@ -5,4 +5,4 @@ with the `consult_notes` tool. They are **unverified**: numbers (growth days, yi
 from video summaries, not from the game. Before relying on a figure, confirm it with `inspect_building` or
 `inspect_specs`. Where a note and the game disagree, the game is right.
 
-Topics: `hydrology`, `industry`, `food-and-wood`, `wellbeing-and-population`.
+Topics: `hydrology`, `industry`, `recipes`, `food-and-wood`, `wellbeing-and-population`.
