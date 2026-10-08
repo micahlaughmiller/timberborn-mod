@@ -419,6 +419,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   Read the reply: it says how many tiles were new, and whether any could not be placed.
 - TREES: mark the nearest trees on the flag's own level first (mark_trees with just from_x/from_y: it marks every tree within 30 walking steps). Trees
   up a cliff come later, only once you have proved a way up (a road the game does not flag as unconnected).
+  If mark_trees finds few trees but cells_only_reachable_up_a_slope is large, the forest is on another level. A road
+  over a natural Slope IS accepted by the game (proven in play): build a lumberjack flag on the forest's level
+  (find_sites near the trees; z is the forest's level), connect() its access_cell to your road, confirm its
+  problems list has no unconnected warning, then mark_trees from the new flag.
   Mark generously close to the flag: unmarked trees give the lumberjacks nothing to do.
 - A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
   is not enough: call mark_trees on a rectangle of trees close to the flag, passing the flag's access_cell as from_x/from_y (the reply says how many

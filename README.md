@@ -157,6 +157,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\find-types.ps1 -Member
   the building's own footprint. Paths must end on `access_cell`.
 - `connect` assumes ground may rise by at most one level between neighbouring path
   tiles. If the game disagrees on some terrain, routes will come back blocked.
+  A road over a natural Slope is accepted by the game (confirmed in play), so `connect`
+  can join two levels where one exists.
 - The AI cannot yet place plantations or fields, set worker priorities, or assign
   beavers; it works through buildings, paths, tree cutting and game speed.
 - Everything here is built against one game version. Types and members shift between
