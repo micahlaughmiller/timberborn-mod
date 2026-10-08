@@ -12,6 +12,8 @@ namespace TimberbornAI
     internal static class ForestryCommands
     {
         private const int MaxSide = 40;
+        private const int DefaultAroundRadius = 30; // mark any tree within this many walking steps of the flag
+        private const int MaxAroundRadius = 40;
 
         public static string Mark(string body, bool add)
         {
@@ -22,10 +24,14 @@ namespace TimberbornAI
             // beaver can walk to, nearest first. This is how a person marks a forest: all of it near the flag.
             int radius = Json.Int(body, "radius", int.MinValue);
             int centerX = Json.Int(body, "from_x", int.MinValue), centerY = Json.Int(body, "from_y", int.MinValue);
+            // A flag and no rectangle means "every tree within 30 steps".
+            if (add && radius == int.MinValue && x1 == int.MinValue && centerX != int.MinValue && centerY != int.MinValue)
+                radius = DefaultAroundRadius;
+
             bool around = add && radius != int.MinValue && centerX != int.MinValue && centerY != int.MinValue;
             if (around)
             {
-                radius = Math.Max(1, Math.Min(MaxSide / 2 - 1, radius));
+                radius = Math.Max(1, Math.Min(MaxAroundRadius, radius));
                 x1 = centerX - radius; x2 = centerX + radius;
                 y1 = centerY - radius; y2 = centerY + radius;
             }
@@ -35,7 +41,7 @@ namespace TimberbornAI
 
             int left = Math.Min(x1, x2), right = Math.Max(x1, x2);
             int top = Math.Min(y1, y2), bottom = Math.Max(y1, y2);
-            if (right - left + 1 > MaxSide || bottom - top + 1 > MaxSide)
+            if (!around && (right - left + 1 > MaxSide || bottom - top + 1 > MaxSide))
                 return Fail("area is too large; each side may be at most " + MaxSide + " cells. Mark it in pieces.");
 
             var forestry = AIForestryServices.Instance;
@@ -68,7 +74,7 @@ namespace TimberbornAI
             int fromX = Json.Int(body, "from_x", int.MinValue), fromY = Json.Int(body, "from_y", int.MinValue);
             if (add && fromX != int.MinValue && fromY != int.MinValue)
             {
-                int maxSteps = around ? radius + 2 : Json.Int(body, "max_steps", 30);
+                int maxSteps = around ? radius : Json.Int(body, "max_steps", 30);
                 // Same level only by default: trees up a cliff are not marked until a way up has been proven.
                 bool anyLevel = (Json.Field(body, "levels") ?? "same").ToLowerInvariant() == "any";
                 var build = AIBuildServices.Instance;

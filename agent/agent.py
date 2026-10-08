@@ -312,8 +312,8 @@ TOOLS = [
         "description": (
             "Mark a rectangle (corners x1,y1 and x2,y2, each side at most 40 cells) for tree cutting. "
             "Lumberjack flags only cut trees inside marked areas. Find trees with get_map's objects "
-            "grid. Easiest: pass from_x/from_y (the lumberjack flag's access_cell) and a radius (try 12) and no rectangle: "
-            "every tree close to the flag that a beaver can reach on the SAME level is marked, nearest first. Trees up a cliff "
+            "grid. Easiest: pass from_x/from_y (the lumberjack flag's access_cell) and no rectangle: every tree within 30 "
+            "walking steps of the flag (change it with radius) that a beaver can reach on the SAME level is marked, nearest first. Trees up a cliff "
             "are counted (cells_only_reachable_up_a_slope) but not marked until you call again with levels='any' after you have "
             "a working road up. With a rectangle instead, pass from_x/from_y too and only cells a beaver can walk to are "
             "marked. The reply reports how many marked cells have trees and how many were skipped."
@@ -325,7 +325,7 @@ TOOLS = [
                 "y1": {"type": "integer"},
                 "x2": {"type": "integer"},
                 "y2": {"type": "integer"},
-                "radius": {"type": "integer", "description": "mark every reachable tree within this many steps of the flag (needs from_x/from_y); replaces the rectangle"},
+                "radius": {"type": "integer", "description": "walking steps from the flag, default 30, max 40 (needs from_x/from_y); replaces the rectangle"},
                 "levels": {"type": "string", "enum": ["same", "any"], "description": "same (default): only the flag's own level; any: also across a natural slope"},
                 "from_x": {"type": "integer", "description": "access_cell x of the lumberjack flag these trees are for"},
                 "from_y": {"type": "integer", "description": "access_cell y of the lumberjack flag"},
@@ -417,7 +417,7 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   `connect` from that building's `access_cell` (in placed_buildings) to the district center's
   `access_cell`. Do not hand-draw routes with build_path unless connect fails.
   Read the reply: it says how many tiles were new, and whether any could not be placed.
-- TREES: mark the nearest trees on the flag's own level first (mark_trees with from_x/from_y and a radius). Trees
+- TREES: mark the nearest trees on the flag's own level first (mark_trees with just from_x/from_y: it marks every tree within 30 walking steps). Trees
   up a cliff come later, only once you have proved a way up (a road the game does not flag as unconnected).
   Mark generously close to the flag: unmarked trees give the lumberjacks nothing to do.
 - A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
