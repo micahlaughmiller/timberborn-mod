@@ -101,6 +101,27 @@ TOOLS = [
         },
     },
     {
+        "name": "connect",
+        "description": (
+            "Lay a path between two cells, routing around trees, buildings, water and steep ground and "
+            "reusing path tiles that already exist. Give it the DOORSTEP cells of the two buildings you "
+            "want to join: each building in placed_buildings has entrance.DoorstepCoordinates {x, y}, the "
+            "one cell outside its door that a path must end on. Joining a new building's doorstep to the "
+            "district center's doorstep is the normal way to make it reachable. If it says no route "
+            "exists, something is blocking: clear trees with mark_trees, or place the building elsewhere."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x1": {"type": "integer", "description": "doorstep x of the first building"},
+                "y1": {"type": "integer"},
+                "x2": {"type": "integer", "description": "doorstep x of the second building"},
+                "y2": {"type": "integer"},
+            },
+            "required": ["x1", "y1", "x2", "y2"],
+        },
+    },
+    {
         "name": "build_path",
         "description": (
             "Lay Path tiles along an L-shaped route from (x1,y1) to (x2,y2): horizontally along y1 "
@@ -198,8 +219,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   flag only helps if there are trees close to it, and a gatherer flag only if there are berry bushes
   close to it. Check the grid; do not guess where the trees are.
 - Beavers walk and haul along paths. A building with no path to the district center will never be
-  built or worked. After placing anything, connect it with build_path, and check the reply: if it lists
-  blocked tiles, route around them with another build_path call.
+  built or worked, and the game shows "Unconnected building" for it. After placing anything, call
+  `connect` from that building's doorstep (entrance.DoorstepCoordinates in placed_buildings) to the
+  district center's doorstep. Do not hand-draw routes with build_path unless connect fails.
+  Read the reply: it says how many tiles were new, and whether any could not be placed.
 - A lumberjack flag only sends beavers to trees inside an area marked for cutting. Placing the flag
   is not enough: call mark_trees on a rectangle of trees close to the flag (the reply says how many
   of the marked cells have trees; if that is 0 you picked bare ground). Keep the marked area near

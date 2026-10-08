@@ -303,7 +303,7 @@ namespace TimberbornAI
         private static readonly Dictionary<Type, MethodInfo> BlockObjectGetters = new Dictionary<Type, MethodInfo>();
 
         /// <summary>Ground cell an entity stands on, from its BlockObject. False for things without one.</summary>
-        private static bool EntityCell(object entity, out Vector3Int cell)
+        internal static bool EntityCell(object entity, out Vector3Int cell)
         {
             var blockObject = BlockOf(entity);
             cell = blockObject == null ? default(Vector3Int) : blockObject.Coordinates;
