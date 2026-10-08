@@ -125,7 +125,7 @@ namespace TimberbornAI
         /// the game's message. If previews cannot be created, the check is skipped (not failed)
         /// and note says so, because blocking every placement on our own limitation would be worse.
         /// </summary>
-        private static bool FullyValid(AIBuildServices build, BlockObjectSpec spec, Placement placement, out string note)
+        internal static bool FullyValid(AIBuildServices build, BlockObjectSpec spec, Placement placement, out string note)
         {
             note = null;
             BlockObject preview = null;
@@ -224,7 +224,7 @@ namespace TimberbornAI
         /// Tries the template name, then common folder prefixes, and reports every failure
         /// so the real format can be read off the game's own error text.
         /// </summary>
-        private static bool TryGetBlueprint(AIBuildServices build, string name, out Blueprint blueprint, out string error)
+        internal static bool TryGetBlueprint(AIBuildServices build, string name, out Blueprint blueprint, out string error)
         {
             var errors = new List<string>();
 
@@ -291,7 +291,7 @@ namespace TimberbornAI
         }
 
         /// <summary>Surface level of a column: the highest cell z returned for it (already the placement level), or -1 if none.</summary>
-        private static int SurfaceZ(AIWorldServices world, int x, int y)
+        internal static int SurfaceZ(AIWorldServices world, int x, int y)
         {
             int top = -1;
             foreach (var cell in GameAccess.Enumerate(world.Terrain.GetAllHeightsInCell(new Vector2Int(x, y))))
@@ -301,13 +301,13 @@ namespace TimberbornAI
             return top;
         }
 
-        private static Exception Root(Exception e)
+        internal static Exception Root(Exception e)
         {
             while (e.InnerException != null) e = e.InnerException;
             return e;
         }
 
-        private static string Ok(string detail) => "{\"ok\":true,\"detail\":" + Json.Str(detail) + "}";
-        private static string Fail(string error) => "{\"ok\":false,\"error\":" + Json.Str(error) + "}";
+        internal static string Ok(string detail) => "{\"ok\":true,\"detail\":" + Json.Str(detail) + "}";
+        internal static string Fail(string error) => "{\"ok\":false,\"error\":" + Json.Str(error) + "}";
     }
 }

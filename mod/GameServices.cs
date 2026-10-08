@@ -216,7 +216,7 @@ namespace TimberbornAI
                 if (!p.CanRead || p.GetIndexParameters().Length > 0) continue;
 
                 var t = p.PropertyType;
-                if (!(t.IsPrimitive || t.IsEnum || t == typeof(string))) continue;
+                if (!Simple(t)) continue;
 
                 object value;
                 try { value = p.GetValue(target); }
@@ -225,14 +225,34 @@ namespace TimberbornAI
                 parts.Add(Json.Str(p.Name) + ":" + Value(value));
             }
 
+            // Some game types (an entrance, a coordinate pair) expose public fields, not properties.
+            foreach (var f in target.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (!Simple(f.FieldType)) continue;
+
+                object value;
+                try { value = f.GetValue(target); }
+                catch { continue; }
+
+                parts.Add(Json.Str(f.Name) + ":" + Value(value));
+            }
+
             return "{" + string.Join(",", parts) + "}";
         }
+
+        private static bool Simple(Type t)
+            => t.IsPrimitive || t.IsEnum || t == typeof(string)
+               || t == typeof(Vector3Int) || t == typeof(Vector2Int) || t == typeof(Vector3) || t == typeof(Vector2);
 
         private static string Value(object v)
         {
             switch (v)
             {
                 case null: return "null";
+                case Vector3Int a: return "{\"x\":" + a.x + ",\"y\":" + a.y + ",\"z\":" + a.z + "}";
+                case Vector2Int b: return "{\"x\":" + b.x + ",\"y\":" + b.y + "}";
+                case Vector3 c: return "{\"x\":" + c.x.ToString("R", CultureInfo.InvariantCulture) + ",\"y\":" + c.y.ToString("R", CultureInfo.InvariantCulture) + ",\"z\":" + c.z.ToString("R", CultureInfo.InvariantCulture) + "}";
+                case Vector2 d: return "{\"x\":" + d.x.ToString("R", CultureInfo.InvariantCulture) + ",\"y\":" + d.y.ToString("R", CultureInfo.InvariantCulture) + "}";
                 case bool b: return b ? "true" : "false";
                 case string s: return Json.Str(s);
                 case float f: return float.IsNaN(f) || float.IsInfinity(f) ? "null" : f.ToString("R", CultureInfo.InvariantCulture);

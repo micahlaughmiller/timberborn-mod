@@ -104,6 +104,7 @@ namespace TimberbornAI
 
             Section(sb, errors, "districts", () => sb.Append(",\"districts\":").Append(WorldReader.Districts()));
             Section(sb, errors, "stock", () => sb.Append(",\"stock\":").Append(WorldReader.Stock()));
+            Section(sb, errors, "placed", () => sb.Append(",\"placed_buildings\":").Append(WorldReader.Placed()));
             Section(sb, errors, "science", () =>
             {
                 var build = AIBuildServices.Instance;

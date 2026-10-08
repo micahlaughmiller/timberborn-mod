@@ -22,6 +22,7 @@ namespace TimberbornAI
             {
                 case "build":       return Placer.Place(body);
                 case "build_path":  return Placer.PlacePath(body);
+                case "find_sites":  return SiteFinder.Find(body);
                 case "mark_trees":  return ForestryCommands.Mark(body, true);
                 case "unmark_trees": return ForestryCommands.Mark(body, false);
                 case "set_speed":   return SetSpeed(body);

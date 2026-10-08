@@ -305,8 +305,15 @@ namespace TimberbornAI
         /// <summary>Ground cell an entity stands on, from its BlockObject. False for things without one.</summary>
         private static bool EntityCell(object entity, out Vector3Int cell)
         {
-            cell = default(Vector3Int);
-            if (entity == null) return false;
+            var blockObject = BlockOf(entity);
+            cell = blockObject == null ? default(Vector3Int) : blockObject.Coordinates;
+            return blockObject != null;
+        }
+
+        /// <summary>The BlockObject (position, orientation, entrance) of an entity, or null if it has none.</summary>
+        private static Timberborn.BlockSystem.BlockObject BlockOf(object entity)
+        {
+            if (entity == null) return null;
 
             object block = null;
             try
@@ -326,11 +333,49 @@ namespace TimberbornAI
             catch { block = null; } // GetComponent throws for entities with no BlockObject
 
             if (block == null) block = Components.Get(entity, typeof(Timberborn.BlockSystem.BlockObject));
-            var blockObject = block as Timberborn.BlockSystem.BlockObject;
-            if (blockObject == null) return false;
+            return block as Timberborn.BlockSystem.BlockObject;
+        }
 
-            cell = blockObject.Coordinates;
-            return true;
+        /// <summary>
+        /// Buildings you have placed: position, facing, whether finished, and the entrance. A path
+        /// must end on the entrance cell for beavers to get in. The entrance is dumped with
+        /// Describer, so its real field names show up here the first time it is read.
+        /// </summary>
+        public static string Placed()
+        {
+            var core = AIGameServices.Instance;
+            var build = AIBuildServices.Instance;
+            if (core == null || build == null) throw new InvalidOperationException("services not bound");
+
+            var names = new HashSet<string>();
+            foreach (var spec in GameAccess.Enumerate(build.Buildings.Buildings))
+            {
+                if (GameAccess.Invoke(build.Buildings, "GetTemplateName", out var n, spec) && n is string s) names.Add(s);
+            }
+
+            var items = new List<string>();
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var name = StateReader.EntityName(entity);
+                if (!names.Contains(name) || name == "Path") continue;
+
+                var block = BlockOf(entity);
+                if (block == null) continue;
+
+                string entrance = "null";
+                try { if (block.HasEntrance) entrance = Describer.Describe(block.PositionedEntrance); }
+                catch { entrance = "null"; }
+
+                var at = block.Coordinates;
+                items.Add("{\"name\":" + Json.Str(name)
+                        + ",\"x\":" + at.x + ",\"y\":" + at.y + ",\"z\":" + at.z
+                        + ",\"orientation\":" + Json.Str(block.Orientation.ToString())
+                        + ",\"finished\":" + (block.IsFinished ? "true" : "false")
+                        + ",\"entrance\":" + entrance + "}");
+                if (items.Count >= 80) break;
+            }
+
+            return "[" + string.Join(",", items) + "]";
         }
 
         /// <summary>

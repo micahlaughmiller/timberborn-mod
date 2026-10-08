@@ -77,6 +77,30 @@ TOOLS = [
         },
     },
     {
+        "name": "find_sites",
+        "description": (
+            "Find spots where a building can actually be placed. Scans a window, tries all four "
+            "orientations and applies the game's full placement rules (a water pump must have its "
+            "intake on water, flags must be reachable). Returns a list of {x, y, z, orientation} sorted "
+            "by distance to near_x/near_y (default: the district center). ALWAYS use this instead of "
+            "guessing coordinates, then build at one of the returned spots with the same orientation."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prefab": {"type": "string"},
+                "x": {"type": "integer", "description": "window left edge (default: around the district center)"},
+                "y": {"type": "integer", "description": "window top edge"},
+                "w": {"type": "integer", "description": "window width, max 40, default 24"},
+                "h": {"type": "integer", "description": "window height, max 40, default 24"},
+                "near_x": {"type": "integer", "description": "prefer spots close to this point, e.g. the trees or the water"},
+                "near_y": {"type": "integer"},
+                "max": {"type": "integer", "description": "how many spots to return, default 10"},
+            },
+            "required": ["prefab"],
+        },
+    },
+    {
         "name": "build_path",
         "description": (
             "Lay Path tiles along an L-shaped route from (x1,y1) to (x2,y2): horizontally along y1 "
@@ -161,9 +185,14 @@ SYSTEM = """You are playing a full game of Timberborn as the Folktails, solo, in
 Each turn you get a world snapshot (/state). Act through tools. Rules:
 
 - Call `note` every turn. The audience sees only that caption, so say the real reason for your move.
-- Look before you build. Use `get_map` to find open, flat ground and `get_buildings` for costs.
-  Check a spot with build(dry_run=true) before committing. Heights in the map are surface levels:
-  a building needs every cell it covers to be the same level, free of trees and other buildings.
+- Never guess coordinates for a building. Call `find_sites` with the building name and a target point
+  (`near_x`, `near_y`: where the trees, water or berries are, or the district center) and build at one
+  of the returned spots, using the orientation it gives. Those spots already satisfy the game's rules,
+  including water for pumps and being reachable for flags. Use `get_buildings` for costs and `get_map`
+  to understand the terrain. Heights in the map are surface levels.
+- `placed_buildings` in the snapshot lists what you have placed, with its facing, whether it is
+  finished, and its `entrance`: the one cell a path must end on for beavers to get in. A path that
+  stops beside a building does nothing.
 - get_map also returns an `objects` grid: a letter per cell naming what stands there (trees, berry
   bushes, ruins, buildings), with `object_legend` saying which letter is which. Use it. A lumberjack
   flag only helps if there are trees close to it, and a gatherer flag only if there are berry bushes

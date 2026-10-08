@@ -32,7 +32,6 @@ namespace TimberbornAI
 
             var size = world.Terrain.Size;
             var cells = new List<Vector3Int>();
-            int treeCells = 0;
 
             for (int y = top; y <= bottom; y++)
             {
@@ -43,18 +42,27 @@ namespace TimberbornAI
                     int z = SurfaceZ(world, x, y);
                     if (z < 0) continue;
 
-                    var cell = new Vector3Int(x, y, z);
-                    cells.Add(cell);
-                    if (forestry.Area.HasYielder(cell)) treeCells++;
+                    cells.Add(new Vector3Int(x, y, z));
                 }
             }
 
             if (cells.Count == 0) return Fail("that rectangle has no terrain inside the map");
 
+            // HasYielder only knows about trees in cells that are already inside the cutting
+            // area, so the count has to be taken after adding (and before removing).
+            int treeCells = 0;
             try
             {
-                if (add) forestry.Area.AddCoordinates(cells);
-                else forestry.Area.RemoveCoordinates(cells);
+                if (add)
+                {
+                    forestry.Area.AddCoordinates(cells);
+                    foreach (var cell in cells) if (forestry.Area.HasYielder(cell)) treeCells++;
+                }
+                else
+                {
+                    foreach (var cell in cells) if (forestry.Area.HasYielder(cell)) treeCells++;
+                    forestry.Area.RemoveCoordinates(cells);
+                }
             }
             catch (Exception e)
             {
