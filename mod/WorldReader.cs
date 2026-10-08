@@ -440,9 +440,7 @@ namespace TimberbornAI
                 {
                     try
                     {
-                        var dropdown = Components.Get(entity, typeof(Timberborn.GatheringUI.GatherablePrioritizerDropdownProvider))
-                                       as Timberborn.GatheringUI.GatherablePrioritizerDropdownProvider;
-                        extra = ",\"gathering\":" + Json.Str(dropdown == null ? null : dropdown.GetValue());
+                        extra = ",\"gathering\":" + Json.Str(GathererCommands.CurrentChoice(GathererCommands.DropdownOf(entity)));
                     }
                     catch { extra = ""; }
                 }
