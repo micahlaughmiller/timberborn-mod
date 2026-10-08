@@ -78,6 +78,49 @@ namespace TimberbornAI
                        + ",\"items\":[" + string.Join(",", items) + "]}");
         }
 
+        /// <summary>
+        /// Every production recipe as one short line: inputs, outputs, hours per cycle and fuel. With
+        /// ?faction=Folktails the other factions' variants (Id ending .IronTeeth) are left out.
+        /// </summary>
+        public static string Recipes(NameValueCollection q)
+        {
+            var build = AIBuildServices.Instance;
+            if (build == null) throw new InvalidOperationException("build services not bound");
+
+            var type = GameAccess.FindType("RecipeSpec");
+            if (type == null) throw new InvalidOperationException("no game type named RecipeSpec");
+
+            var method = build.Specs.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "GetSpecs" && m.IsGenericMethodDefinition && m.GetParameters().Length == 0);
+            if (method == null) throw new InvalidOperationException("the spec service has no GetSpecs<T>()");
+
+            var faction = q == null ? null : q["faction"];
+            var lines = new List<string>();
+            foreach (var item in GameAccess.Enumerate(method.MakeGenericMethod(type).Invoke(build.Specs, null)))
+            {
+                var id = Convert.ToString(GameAccess.Member(item, "Id")) ?? "";
+                int dot = id.LastIndexOf('.');
+                if (!string.IsNullOrEmpty(faction) && dot > 0 && !id.EndsWith("." + faction, StringComparison.OrdinalIgnoreCase)
+                    && (id.EndsWith(".Folktails") || id.EndsWith(".IronTeeth"))) continue;
+
+                string Goods(string member)
+                {
+                    var parts = new List<string>();
+                    foreach (var g in GameAccess.Enumerate(GameAccess.Member(item, member)))
+                        parts.Add(Convert.ToString(GameAccess.Member(g, "Id")) + " x" + Convert.ToString(GameAccess.Member(g, "Amount")));
+                    return string.Join(" + ", parts);
+                }
+
+                var fuel = Convert.ToString(GameAccess.Member(item, "Fuel"));
+                lines.Add(Json.Str(id + ": " + (Goods("Ingredients") == "" ? "(nothing)" : Goods("Ingredients"))
+                                   + " -> " + (Goods("Products") == "" ? "(nothing)" : Goods("Products"))
+                                   + " | " + Convert.ToString(GameAccess.Member(item, "CycleDurationInHours")) + " h"
+                                   + (string.IsNullOrEmpty(fuel) ? "" : " | fuel " + fuel)));
+            }
+
+            return "{\"count\":" + lines.Count + ",\"recipes\":[" + string.Join(",", lines) + "]}";
+        }
+
         private static string Cap(string json)
         {
             if (json.Length <= MaxChars) return json;

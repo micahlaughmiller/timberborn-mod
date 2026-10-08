@@ -601,9 +601,17 @@ def bootstrap_context():
     needs = json.dumps(call_mod("/specs?type=NeedSpec&max=30"))
     if len(needs) > 12000:
         needs = needs[:12000] + "... (cut; call inspect_specs for the rest)"
+    try:
+        faction = call_mod("/state").get("faction") or ""
+        recipes = json.dumps(call_mod("/recipes?" + urllib.parse.urlencode({"faction": faction})))
+    except Exception as exc:  # recipes are a convenience; the run continues without them
+        recipes = "unavailable (" + str(exc) + "); use inspect_specs with type RecipeSpec"
     return (
         "Buildings you can build right now (names, unlock state, costs):\n"
         + json.dumps(buildings)
+        + "\n\nEvery production recipe (inputs -> outputs, hours per cycle, fuel). Which building makes which "
+        + "recipe is in inspect_building under ManufactorySpec.ProductionRecipeIds:\n"
+        + recipes
         + "\n\nWhat your faction's beavers need (NeedSpec data from the game):\n"
         + needs
         + "\n\nMap around the district center:\n"
