@@ -267,13 +267,14 @@ namespace TimberbornAI
             string n = name.ToLowerInvariant();
             if (n.Contains("gatherer") || n.Contains("farm") || n.Contains("grill") || n.Contains("bakery") || n.Contains("gristmill")
                 || n.Contains("aquaticfarm") || n.Contains("mudpit")) return "food";
+            // Badwater first: "badwaterpump" contains "waterpump" and must not get water's top priority.
+            if (n.Contains("badwater")) return "badwater";
             if (n.Contains("waterpump") || n.Contains("aquiferdrill")) return "water";
             if (n.Contains("lumberjack") || n.Contains("forester") || n.Contains("tapper")) return "logs";
             if (n.Contains("lumbermill") || n.Contains("woodworkshop") || n.Contains("powerwheel")) return "planks";
             if (n.Contains("inventor") || n.Contains("observatory")) return "science";
             if (n.Contains("gearworkshop")) return "gears";
             if (n.Contains("scavenger")) return "scrap";
-            if (n.Contains("badwater")) return "badwater";
             return "other";
         }
 

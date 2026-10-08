@@ -29,6 +29,8 @@ namespace TimberbornAI
             var sb = new StringBuilder("{\"in_game\":true");
             var errors = new List<string>();
 
+            Section(sb, errors, "faction", () => sb.Append(",\"faction\":").Append(Json.Str(WorldReader.Faction())));
+
             Section(sb, errors, "time", () =>
             {
                 sb.Append(",\"cycle\":").Append(svc.Cycle.Cycle)

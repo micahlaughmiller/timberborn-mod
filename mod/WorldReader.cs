@@ -347,6 +347,35 @@ namespace TimberbornAI
             return set;
         }
 
+        /// <summary>
+        /// The faction being played, read from the district center's template name ("DistrictCenter.Folktails").
+        /// Falls back to the most common name suffix among the faction's buildings. "unknown" if neither works.
+        /// </summary>
+        public static string Faction()
+        {
+            var core = AIGameServices.Instance;
+            var build = AIBuildServices.Instance;
+            if (core == null) return "unknown";
+
+            foreach (var entity in GameAccess.Enumerate(core.Entities.Entities))
+            {
+                var name = StateReader.EntityName(entity);
+                if (!name.StartsWith("DistrictCenter.", StringComparison.Ordinal)) continue;
+                return name.Substring("DistrictCenter.".Length);
+            }
+
+            if (build == null) return "unknown";
+            var counts = new Dictionary<string, int>();
+            foreach (var name in Management.BuildingNames(build))
+            {
+                int dot = name.IndexOf('.');
+                if (dot < 0) continue;
+                var suffix = name.Substring(dot + 1);
+                counts[suffix] = counts.TryGetValue(suffix, out var n) ? n + 1 : 1;
+            }
+            return counts.Count == 0 ? "unknown" : counts.OrderByDescending(kv => kv.Value).First().Key;
+        }
+
         /// <summary>The doorstep cell of the first finished district center, where a path to the settlement must end.</summary>
         internal static bool DistrictDoorstep(out int x, out int y)
         {

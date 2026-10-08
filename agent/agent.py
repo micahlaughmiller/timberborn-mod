@@ -376,7 +376,8 @@ TOOLS = [
 CACHED_TOOLS = TOOLS[:-1] + [dict(TOOLS[-1], cache_control={"type": "ephemeral"})]
 
 
-SYSTEM = """You are playing a full game of Timberborn as the Folktails, solo, in front of a live audience.
+SYSTEM = """You are playing a full game of Timberborn, solo, in front of a live audience. The player chose only the map, the
+faction and your goal; everything else is yours to work out from the game.
 
 Each turn you get a world snapshot (/state). Act through tools. Rules:
 
@@ -428,6 +429,14 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   times and grow it before expanding. When the warning appears, use what time is left to top up
   storage and finish what protects the colony. Never state the date of the next hazard in your
   notes, because you do not know it.
+- KNOW YOUR FACTION. `faction` in the snapshot says which one you are playing, and the buildings, needs and recipes
+  you were given at the start belong to it. The playbook below was worked out for Folktails (flags, pump, tanks,
+  inventor, lodges, grill). If you are another faction, keep the same priorities (survive first: whatever your
+  beavers need to drink, eat and be safe; then storage, science, housing, production, growth) but use YOUR
+  faction's equivalents: read what its beavers need (the NeedSpec data at the start, or inspect_specs), find the
+  buildings that provide each need (get_buildings, then inspect_building for their workers, inputs and outputs),
+  and do not copy Folktails building names. Free buildings come first in any faction. Confirm every step with
+  `problems` and your stock numbers.
 - FIRST TURN, while the game is still paused: look at the map (reachable grid and objects), then set the working day
   to 18 hours (set_work_hours) and put the district center's crew at 4 (set_workers on its x and y from
   placed_buildings). Then start the build order. Do not unpause until the first flags are placed and connected.
@@ -462,7 +471,7 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
     beavers' real need rates (inspect_specs NeedSpec) times a generous number of days, then add a margin.
     Do not use a remembered number for how much a beaver drinks: read it from the game.
   * Water security goes beyond one pump: storage tanks first; later a Dam to hold river water as a reservoir
-    (Dam.Folktails is already unlocked), and floodgates once science unlocks them. Badtides (toxic water)
+    (check get_buildings for a Dam; it is normally available from the start), and floodgates once science unlocks them. Badtides (toxic water)
     are handled later by routing badwater away from your supply.
   * Workers are fluid: shift crews to whichever need is the current bottleneck, food and water first.
   * Keep wood renewable: foresters (unlock them) replant trees, and power wheels drive lumber mills and
@@ -471,7 +480,7 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   * Build compactly along roads. Once flat land is scarce, go vertical (platforms, roofs) so green land
     stays free for crops. Leave decorations until water, food and housing are stable.
 - MORE HABITS OF GOOD PLAYERS (verify any number with inspect_building or inspect_specs before relying on it):
-  * Control population growth. Folktails breed only into empty lodge beds, and every beaver drinks and eats.
+  * Control population growth. In a Folktails game beavers breed only into empty lodge beds (find out how your faction breeds), and every beaver drinks and eats.
     Add one or two lodges at a time, and only while the water and food reserves are rising. A sudden jump in
     population is a common way a colony dies.
   * Put a Teeth Grindstone near the lumberjacks: logging wears their teeth down. It is cheap and unlocked.
@@ -575,9 +584,14 @@ def bootstrap_context():
     """Static-ish facts handed over once at the start so the first turn isn't spent fetching them."""
     buildings = call_mod("/buildings")
     area = call_mod("/map")
+    needs = json.dumps(call_mod("/specs?type=NeedSpec&max=30"))
+    if len(needs) > 12000:
+        needs = needs[:12000] + "... (cut; call inspect_specs for the rest)"
     return (
         "Buildings you can build right now (names, unlock state, costs):\n"
         + json.dumps(buildings)
+        + "\n\nWhat your faction's beavers need (NeedSpec data from the game):\n"
+        + needs
         + "\n\nMap around the district center:\n"
         + json.dumps(area)
     )
@@ -667,6 +681,7 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
 def main():
     parser = argparse.ArgumentParser(description="Drive a Timberborn playthrough with Claude.")
     parser.add_argument("--goal", default="agent/goal.md", help="File describing the playthrough objective")
+    parser.add_argument("--goal-text", default=None, help="The objective as text; used instead of the goal file")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Claude model id")
     parser.add_argument("--interval", type=float, default=15.0, help="Seconds to wait between turns")
     parser.add_argument("--max-turns", type=int, default=0, help="0 runs until interrupted")
@@ -676,8 +691,11 @@ def main():
     if not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY is not set.")
 
-    with open(args.goal, encoding="utf-8") as fh:
-        goal_text = fh.read()
+    if args.goal_text:
+        goal_text = args.goal_text
+    else:
+        with open(args.goal, encoding="utf-8") as fh:
+            goal_text = fh.read()
 
     probe = call_mod("/health", timeout=5)
     if probe.get("error"):
@@ -691,7 +709,12 @@ def main():
     client = anthropic.Anthropic(default_headers=headers or None)
     goal_message = {
         "role": "user",
-        "content": "Your objective for this playthrough:\n\n" + goal_text + "\n\n" + bootstrap_context(),
+        # Identical on every call, so it is cached together with the system prompt and tools.
+        "content": [{
+            "type": "text",
+            "text": "Your objective for this playthrough:\n\n" + goal_text + "\n\n" + bootstrap_context(),
+            "cache_control": {"type": "ephemeral"},
+        }],
     }
 
     turns = []

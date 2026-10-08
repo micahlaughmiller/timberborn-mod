@@ -105,6 +105,16 @@ If the Mods menu does not show the mod, check
 `%USERPROFILE%\AppData\LocalLow\Mechanistry\Timberborn\Player.log` for what folder it
 scanned. Log lines from the mod start with `[TimberbornAI]`.
 
+## You pick the map, the faction and the goal
+
+Everything else is the AI's job. Start a game in Timberborn with the map and faction you want and leave it on the
+first screen (it starts paused). The mod reports `faction` in `/state`, read from the district center's name. The
+AI is handed the building list and the faction's own need specs up front, and works out what its beavers need and
+which buildings provide it. The built-in playbook is worked out for Folktails; for another faction the AI keeps the
+same priorities and uses that faction's equivalents, confirming each with `inspect_building` and `problems`.
+Pass the goal as a file (`--goal`) or inline (`--goal-text "..."`). Starting or loading the game itself is still
+done by hand.
+
 ## Run the agent
 
 Needs Python 3.10+ and an Anthropic API key. On Windows the launcher is `py`.
