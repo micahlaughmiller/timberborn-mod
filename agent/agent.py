@@ -106,9 +106,9 @@ TOOLS = [
         "name": "set_gatherer",
         "description": (
             "Choose what a gatherer flag collects. A flag does nothing until a good is selected: its "
-            "`gathering` field in placed_buildings is empty or null and the game shows 'No good selected'. "
-            "Call it right after placing a gatherer flag with good='berry' (any part of the option name "
-            "works, for example 'blueberry'). With x and y omitted it applies to every gatherer flag. "
+            "`gathering` field in placed_buildings is 'Nothing' and the game shows 'No good selected'. "
+            "Call it right after placing a gatherer flag with good='Berries'. The options are Nothing, Berries, "
+            "Dandelions and Chestnuts (a partial, case-insensitive name works). With x and y omitted it applies to every gatherer flag. "
             "Leave out `good` to list the options."
         ),
         "input_schema": {
@@ -266,7 +266,7 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   or lower ground than the path network cannot be reached, and trees up a cliff cannot be cut. Compare
   the height numbers in the map and keep flags, trees and buildings on the same level as the district.
 - A gatherer flag is idle until you choose what it collects. After placing one, call `set_gatherer` with
-  the food you want (berries). Check `gathering` in placed_buildings: empty or null means it is doing nothing.
+  the food you want (berries). Check `gathering` in placed_buildings: `Nothing` means the flag is doing nothing.
 - Beavers walk and haul along paths. A building with no path to the district center will never be
   built or worked, and the game shows "Unconnected building" for it. After placing anything, call
   `connect` from that building's `access_cell` (in placed_buildings) to the district center's
