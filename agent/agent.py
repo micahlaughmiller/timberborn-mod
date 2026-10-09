@@ -474,7 +474,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
      trees that also touch '#' ground, mark those trees with mark_trees (pass the flag's access_cell as
      from_x/from_y), and `connect` each flag to the district center. Two flags to begin with.
      Find the spot with find_sites using near_x/near_y on a tree and rank "near": the flag belongs within 2 cells
-     of its trees, not beside the district center.
+     of its trees, not beside the district center. Stand at the EDGE of the forest nearest your road, not in its
+     middle: try find_sites on a few trees along that edge and keep the spot with the shortest
+     walk_steps_to_settlement. The 30-step mark area still covers the whole forest from there. For a forest on
+     a higher level, the door must be on that level too and the road goes over a natural slope (connect does it).
   2. GATHERER FLAGS next. Also free. Put them beside berry bushes (find_sites with rank "near" on a bush, within
      2 cells), `connect` them, then `set_gatherer` to Berries.
   3. WATER PUMPS next, on the river bank where find_sites says (usually one level lower). Connect them. The first
