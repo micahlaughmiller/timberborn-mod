@@ -129,13 +129,30 @@ for z, label, score, x, y in plans:
     say("")
     say("=== flag on level %d (%s) near the cluster at (%d,%d), %d trees within 4 cells" % (z, label, x, y, score))
     try:
-        # rank "near": the spot closest to the tree wins, not the one closest to the settlement
-        found = post({"action": "find_sites", "prefab": prefab, "near_x": x, "near_y": y, "rank": "near", "max": 12})
-        sites = [s for s in found.get("sites", []) if s["z"] == z]
-        if not sites:
-            say("no flag site on level %d near there: %s" % (z, short(found, 300)))
+        # The flag goes at the edge of the cluster nearest the road, not in its middle: the mark area is 30
+        # steps wide so it still covers the cluster, and the road stays short. Try several trees on that edge
+        # (each within 5 cells of a valid spot) and keep the site with the shortest walk to the settlement.
+        edge = sorted(((abs(tx - road["x"]) + abs(ty - road["y"]), tx, ty) for (tx, ty), tz in trees.items()
+                       if tz == z and abs(tx - x) + abs(ty - y) <= 10 and density(tx, ty, z) * 5 >= score * 2),
+                      key=lambda t: t[0])
+        targets = []
+        for _, tx, ty in edge:
+            if all(abs(tx - ux) + abs(ty - uy) >= 3 for ux, uy in targets):
+                targets.append((tx, ty))
+            if len(targets) == 6:
+                break
+        options = []
+        for tx, ty in targets or [(x, y)]:
+            found = post({"action": "find_sites", "prefab": prefab, "near_x": tx, "near_y": ty, "rank": "near", "max": 8})
+            for s in found.get("sites", []):
+                if s["z"] == z and s["distance"] <= 5 and s.get("walk_steps_to_settlement") is not None:
+                    options.append(s)
+                    break
+        if not options:
+            say("no flag site on level %d near there" % z)
             continue
-        site = sites[0]
+        site = min(options, key=lambda s: (s["walk_steps_to_settlement"], s["distance"]))
+        say("tried %d edge trees, %d gave a valid site; keeping the shortest walk" % (len(targets), len(options)))
         door = site.get("doorstep") or {"x": site["x"], "y": site["y"]}
         say("best site (%d,%d,z%d) door (%d,%d) %d cells from the tree, walk to settlement=%s new_tiles=%s" % (
             site["x"], site["y"], site["z"], door["x"], door["y"], site["distance"],
