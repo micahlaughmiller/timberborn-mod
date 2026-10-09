@@ -269,8 +269,8 @@ namespace TimberbornAI
 
             var at = placement.Coordinates;
             var size = world.Terrain.Size;
-            int minX = Math.Max(0, Math.Min(tx, at.x) - 10), maxX = Math.Min(size.x - 1, Math.Max(tx, at.x) + 10);
-            int minY = Math.Max(0, Math.Min(ty, at.y) - 10), maxY = Math.Min(size.y - 1, Math.Max(ty, at.y) + 10);
+            int minX = Math.Max(0, Math.Min(tx, at.x) - 30), maxX = Math.Min(size.x - 1, Math.Max(tx, at.x) + 30);
+            int minY = Math.Max(0, Math.Min(ty, at.y) - 30), maxY = Math.Min(size.y - 1, Math.Max(ty, at.y) + 30);
             if (maxX - minX + 1 > 110 || maxY - minY + 1 > 110)
             {
                 why = "it is too far from the settlement to check that beavers can reach it; build closer to the district center";

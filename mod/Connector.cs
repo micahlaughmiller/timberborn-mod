@@ -17,7 +17,7 @@ namespace TimberbornAI
     internal static class Connector
     {
         private const int MaxSide = 90;
-        private const int Margin = 12;
+        private const int Margin = 24;
 
         internal struct Cell
         {
