@@ -51,8 +51,10 @@ namespace TimberbornAI
             var center = DistrictCenter(world, size);
             int w = Math.Max(1, Math.Min(MaxSide, Json.Int(body, "w", 24)));
             int h = Math.Max(1, Math.Min(MaxSide, Json.Int(body, "h", 24)));
-            int x0 = Json.Int(body, "x", center.x - w / 2);
-            int y0 = Json.Int(body, "y", center.y - h / 2);
+            // The window follows near_x/near_y when given, so a spot next to far-away trees is actually searched.
+            int focusX = Json.Int(body, "near_x", center.x), focusY = Json.Int(body, "near_y", center.y);
+            int x0 = Json.Int(body, "x", focusX - w / 2);
+            int y0 = Json.Int(body, "y", focusY - h / 2);
             x0 = Math.Max(0, Math.Min(size.x - 1, x0));
             y0 = Math.Max(0, Math.Min(size.y - 1, y0));
             w = Math.Min(w, size.x - x0);
@@ -62,6 +64,13 @@ namespace TimberbornAI
             int nearX = Json.Int(body, "near_x", center.x);
             int nearY = Json.Int(body, "near_y", center.y);
             int wanted = Math.Max(1, Math.Min(MaxResults, Json.Int(body, "max", DefaultResults)));
+
+            // rank "near" puts the spot closest to near_x/near_y first (a lumberjack flag beside its trees);
+            // the default favours a short walk to the settlement (storage, housing, workshops).
+            bool nearFirst = string.Equals(Json.Field(body, "rank"), "near", StringComparison.OrdinalIgnoreCase);
+            int Score(Candidate c) => nearFirst
+                ? c.Distance * 4 + Math.Max(0, c.Walk)
+                : c.Distance + c.NewTiles + 2 * Math.Max(0, c.Walk);
 
             // 1. Cheap pass: block rules only, every orientation, at the surface and the two levels below
             // (buildings that stand in water or against a bank sit lower than the shore).
@@ -186,7 +195,7 @@ namespace TimberbornAI
                 var sharedWalk = new Dictionary<long, Connector.Cell>();
                 var rechecked = new List<Candidate>();
 
-                foreach (var c in passing.OrderBy(c => c.Distance + c.NewTiles + 2 * Math.Max(0, c.Walk)).ThenBy(c => c.DoorDistance).Take(Math.Max(24, wanted * 6)))
+                foreach (var c in passing.OrderBy(c => Score(c)).ThenBy(c => c.DoorDistance).Take(Math.Max(24, wanted * 6)))
                 {
                     if (!c.HasDoor) { rechecked.Add(c); continue; }
 
@@ -208,7 +217,7 @@ namespace TimberbornAI
             var good = passing
                 .GroupBy(c => ((long)c.Y * 100000L + c.X) * 100L + c.Z)
                 .Select(g => g.OrderBy(c => c.DoorDistance).First())
-                .OrderBy(c => c.Distance + c.NewTiles + 2 * Math.Max(0, c.Walk)).ThenBy(c => c.DoorDistance)
+                .OrderBy(c => Score(c)).ThenBy(c => c.DoorDistance)
                 .Take(wanted)
                 .ToList();
 

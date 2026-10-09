@@ -129,15 +129,19 @@ for z, label, score, x, y in plans:
     say("")
     say("=== flag on level %d (%s) near the cluster at (%d,%d), %d trees within 4 cells" % (z, label, x, y, score))
     try:
-        found = post({"action": "find_sites", "prefab": prefab, "near_x": x, "near_y": y})
+        # rank "near": the spot closest to the tree wins, not the one closest to the settlement
+        found = post({"action": "find_sites", "prefab": prefab, "near_x": x, "near_y": y, "rank": "near", "max": 12})
         sites = [s for s in found.get("sites", []) if s["z"] == z]
         if not sites:
             say("no flag site on level %d near there: %s" % (z, short(found, 300)))
             continue
         site = sites[0]
         door = site.get("doorstep") or {"x": site["x"], "y": site["y"]}
-        say("best site (%d,%d,z%d) door (%d,%d) walk=%s new_tiles=%s" % (
-            site["x"], site["y"], site["z"], door["x"], door["y"], site.get("walk_steps_to_settlement"), site.get("new_path_tiles")))
+        say("best site (%d,%d,z%d) door (%d,%d) %d cells from the tree, walk to settlement=%s new_tiles=%s" % (
+            site["x"], site["y"], site["z"], door["x"], door["y"], site["distance"],
+            site.get("walk_steps_to_settlement"), site.get("new_path_tiles")))
+        if site["distance"] > 3:
+            say("WARNING: no valid flag site within 3 cells of that tree; this one is %d away" % site["distance"])
 
         built = post({"action": "build", "prefab": prefab, "x": site["x"], "y": site["y"], "z": site["z"],
                       "orientation": site["orientation"], "dry_run": not LIVE})

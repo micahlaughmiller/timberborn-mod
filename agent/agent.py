@@ -128,6 +128,8 @@ TOOLS = [
                 "h": {"type": "integer", "description": "window height, max 40, default 24"},
                 "near_x": {"type": "integer", "description": "prefer spots close to this point, e.g. the trees or the water"},
                 "near_y": {"type": "integer"},
+                "rank": {"type": "string", "enum": ["settlement", "near"],
+                         "description": "settlement (default): short walk to the district center, for storage, housing and workshops. near: the spot closest to near_x/near_y first, for a lumberjack or gatherer flag, which should sit within 2 cells of its trees or bushes. The search window follows near_x/near_y."},
                 "max": {"type": "integer", "description": "how many spots to return, default 10"},
             },
             "required": ["prefab"],
@@ -471,7 +473,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   1. LUMBERJACK FLAGS first. They are free. Put them on ground marked '#' in the `reachable` grid, right next to
      trees that also touch '#' ground, mark those trees with mark_trees (pass the flag's access_cell as
      from_x/from_y), and `connect` each flag to the district center. Two flags to begin with.
-  2. GATHERER FLAGS next. Also free. Put them beside berry bushes, `connect` them, then `set_gatherer` to Berries.
+     Find the spot with find_sites using near_x/near_y on a tree and rank "near": the flag belongs within 2 cells
+     of its trees, not beside the district center.
+  2. GATHERER FLAGS next. Also free. Put them beside berry bushes (find_sites with rank "near" on a bush, within
+     2 cells), `connect` them, then `set_gatherer` to Berries.
   3. WATER PUMPS next, on the river bank where find_sites says (usually one level lower). Connect them. The first
      12 logs you get go to a pump; water is what keeps the colony alive.
   4. Then a SMALL WAREHOUSE (for berries and logs) and a SMALL TANK (to store water).
