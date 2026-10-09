@@ -1,7 +1,8 @@
 """Tell every finished warehouse and tank what it holds.
 
-A storage building's setting only exists once it is finished, so this waits (the game must be running,
-not paused) until the buildings are done, then sets each one:
+Sets each store straight away, finished or not, so one that accepts the setting while it is still being built
+is ready to take goods the moment it is done. It then waits (the game must be running, not paused) for them
+to finish and sets them again, in case the game resets the setting on completion:
 
     warehouses -> Berries (food)     tanks -> Water
 
@@ -61,28 +62,36 @@ def stores():
     return [b for b in get("/state").get("placed_buildings", []) if good_for(str(b.get("name", "")))]
 
 
-deadline = time.time() + WAIT
-while True:
-    found = stores()
-    waiting = [b for b in found if not b.get("finished")]
-    if not waiting or time.time() >= deadline:
-        break
-    say("waiting for %d storage building(s) to finish (unpause the game if it is paused)..." % len(waiting))
-    time.sleep(5)
+def apply(found, label):
+    results = {}
+    for b in found:
+        name = str(b["name"])
+        good = good_for(name)
+        reply = post({"action": "set_storage", "x": b["x"], "y": b["y"], "good": good})
+        state_word = "finished" if b.get("finished") else "under construction"
+        say("[%s] %s at (%s,%s) %s -> %s: %s" % (label, name, b["x"], b["y"], state_word, good, json.dumps(reply)[:450]))
+        results[(b["x"], b["y"])] = reply.get("ok")
+    return results
 
+
+found = stores()
 if not found:
     say("no warehouses or tanks placed yet")
 
-done = {}
-for b in found:
-    name = str(b["name"])
-    if not b.get("finished"):
-        say("%s at (%s,%s): not finished yet, skipped" % (name, b["x"], b["y"]))
-        continue
-    good = good_for(name)
-    reply = post({"action": "set_storage", "x": b["x"], "y": b["y"], "good": good})
-    say("%s at (%s,%s) -> %s: %s" % (name, b["x"], b["y"], good, json.dumps(reply)[:500]))
-    done[(b["x"], b["y"])] = reply.get("ok")
+# 1. Right now, finished or not: a store that accepts the setting while under construction is ready to take
+#    goods the moment it is built.
+done = apply(found, "now")
+
+# 2. Wait for construction to finish and set again, in case the game resets the setting when a building completes.
+deadline = time.time() + WAIT
+while WAIT > 0 and time.time() < deadline:
+    found = stores()
+    waiting = [b for b in found if not b.get("finished")]
+    if not waiting:
+        done = apply(found, "after finishing")
+        break
+    say("waiting for %d storage building(s) to finish (unpause the game if it is paused)..." % len(waiting))
+    time.sleep(5)
 
 say("")
 say("%d of %d storage buildings set" % (sum(1 for ok in done.values() if ok), len(found)))

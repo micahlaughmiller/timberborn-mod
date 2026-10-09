@@ -108,6 +108,15 @@ def place(base, target=None, after=None, limit=5):
         return None
 
 
+def holds(good):
+    """Right after placing a store, tell it what to hold. If the game accepts this on a construction site the
+    store starts accepting that good the moment it is built; sim_storage.py repeats it once it is finished."""
+    def after(site):
+        reply = post({"action": "set_storage", "x": site["x"], "y": site["y"], "good": good})
+        say("set_storage %s while under construction: %s" % (good, short(reply, 400)))
+    return after
+
+
 def to_berries(site):
     say("set_gatherer: " + short(post({"action": "set_gatherer", "x": site["x"], "y": site["y"], "good": "Berries"}), 300))
 
@@ -115,8 +124,8 @@ def to_berries(site):
 # ---- the build order
 place("GathererFlag", nearest(bushes), after=to_berries)
 place("WaterPump", nearest(water), limit=6)
-place("SmallWarehouse")
-place("SmallTank")
+place("SmallWarehouse", after=holds("Berries"))
+place("SmallTank", after=holds("Water"))
 place("Inventor")
 place("Lodge")
 

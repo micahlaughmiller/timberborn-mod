@@ -458,9 +458,10 @@ Each turn you get a world snapshot (/state). Act through tools. Rules:
   to 18 hours (set_work_hours) and put the district center's crew at 4 (set_workers on its x and y from
   placed_buildings). Then start the build order. Do not unpause until the first flags are placed and connected.
 - STORES MUST BE TOLD WHAT TO HOLD. A new warehouse, tank or pile holds nothing until you call set_storage:
-  Water in tanks, Berries in the food warehouse, Log for the log store. The setting only exists once the building
-  is finished (finished: true in placed_buildings), so set it on the first turn you see it finished, and keep
-  checking every turn until every store you placed has been set.
+  Water in tanks, Berries in the food warehouse, Log for the log store. Call set_storage in the same turn you
+  place the store, so it takes goods the moment it is built. If the reply says it failed, the game may not accept
+  the setting on a construction site: retry on the first turn placed_buildings shows finished: true, and keep
+  checking every turn until every store you placed has been set. Once finished, confirm it is still set.
 - KEEP THE CREWS RIGHT. Do not lower the district center below the number manage_workers gives it (4 unless food or
   water crews cannot otherwise be filled, never below 2): setting it to 2 yourself to free beavers for lumberjacks
   breaks that rule, and the next manage_workers call will undo it anyway. After placing new buildings call
