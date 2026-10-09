@@ -153,6 +153,10 @@ namespace TimberbornAI
                 // The door position comes from the blueprint, not from the preview, which does not report it reliably.
                 bool hasDoor = Placer.TryDoorstep(blockSpec, placement, out var doorstep);
 
+                // A door must open onto ground at the building's own level. A building standing on a bump one
+                // level above its door cell looks reachable by (x, y) alone but nothing can step up to it.
+                if (hasDoor && DoorOnOtherLevel(world, c.X, c.Y, c.Z, doorstep.x, doorstep.y)) continue;
+
                 c.HasDoor = hasDoor;
                 c.DoorX = doorstep.x;
                 c.DoorY = doorstep.y;
@@ -278,6 +282,13 @@ namespace TimberbornAI
 
             if (Placer.TryDoorstep(spec, placement, out var door))
             {
+                if (DoorOnOtherLevel(world, at.x, at.y, at.z, door.x, door.y))
+                {
+                    why = "its door would open onto ground at a different height than the building stands on; beavers cannot "
+                          + "step up or down there without a natural slope or stairs. Pick a spot from find_sites.";
+                    return false;
+                }
+
                 if (field.ContainsKey(Connector.Key(door.x, door.y))) return true;
                 why = "its door would open onto ground that is not connected, on one level, to the district center "
                       + "(a cliff, water, trees or another building are in the way)";
@@ -288,6 +299,20 @@ namespace TimberbornAI
             why = "beavers could not walk to it from the district center on one level (it is on higher or lower ground, "
                   + "across water, or behind trees)";
             return false;
+        }
+
+        /// <summary>
+        /// True when the building stands on the surface (its own cell's ground height is its level) but the ground
+        /// outside its door is at a different height. Buildings set lower than the shore, such as pumps, are not
+        /// judged because their level is deliberately not the surface.
+        /// </summary>
+        private static bool DoorOnOtherLevel(AIWorldServices world, int x, int y, int z, int doorX, int doorY)
+        {
+            int own = Placer.SurfaceZ(world, x, y);
+            if (own != z) return false;
+
+            int outside = Placer.SurfaceZ(world, doorX, doorY);
+            return outside >= 0 && outside != z;
         }
 
         /// <summary>The (x, y) cells a building covers at this placement, as Connector keys.</summary>
