@@ -157,7 +157,7 @@ namespace TimberbornAI
                     c.Walk = steps;
                     c.NewTiles = costs != null && costs.TryGetValue(doorKey, out var needed) ? needed : steps;
                     // Fewest new path tiles first (so buildings line up along existing roads), then shortest walk.
-                    c.DoorDistance = c.NewTiles * 1000 + steps;
+                    c.DoorDistance = steps * 10 + c.NewTiles;
                 }
                 else if (!hasDoor && walk != null)
                 {
@@ -169,7 +169,7 @@ namespace TimberbornAI
                     c.Walk = best;
                     int bestTiles = costs != null ? ReachSteps(costs, c.X, c.Y) : best;
                     c.NewTiles = bestTiles < 0 ? best : bestTiles;
-                    c.DoorDistance = c.NewTiles * 1000 + best;
+                    c.DoorDistance = best * 10 + c.NewTiles;
                 }
                 passing.Add(c);
                 cellsSeen.Add(cellKey);
@@ -186,7 +186,7 @@ namespace TimberbornAI
                 var sharedWalk = new Dictionary<long, Connector.Cell>();
                 var rechecked = new List<Candidate>();
 
-                foreach (var c in passing.OrderBy(c => c.Distance + c.NewTiles).ThenBy(c => c.DoorDistance).Take(Math.Max(24, wanted * 6)))
+                foreach (var c in passing.OrderBy(c => c.Distance + c.NewTiles + 2 * Math.Max(0, c.Walk)).ThenBy(c => c.DoorDistance).Take(Math.Max(24, wanted * 6)))
                 {
                     if (!c.HasDoor) { rechecked.Add(c); continue; }
 
@@ -198,7 +198,7 @@ namespace TimberbornAI
                     var costBlocked = Connector.WalkingDistances(build, world, toX, toY, gx0, gx1, gy0, gy1, true, true, false, footprint, sharedWalk);
                     c.Walk = steps;
                     c.NewTiles = costBlocked != null && costBlocked.TryGetValue(doorKey, out var needed) ? needed : steps;
-                    c.DoorDistance = c.NewTiles * 1000 + steps;
+                    c.DoorDistance = steps * 10 + c.NewTiles;
                     rechecked.Add(c);
                 }
 
@@ -208,7 +208,7 @@ namespace TimberbornAI
             var good = passing
                 .GroupBy(c => ((long)c.Y * 100000L + c.X) * 100L + c.Z)
                 .Select(g => g.OrderBy(c => c.DoorDistance).First())
-                .OrderBy(c => c.Distance + c.NewTiles).ThenBy(c => c.DoorDistance)
+                .OrderBy(c => c.Distance + c.NewTiles + 2 * Math.Max(0, c.Walk)).ThenBy(c => c.DoorDistance)
                 .Take(wanted)
                 .ToList();
 
