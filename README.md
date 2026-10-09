@@ -125,6 +125,19 @@ set ANTHROPIC_API_KEY=your-key
 py agent\agent.py --goal agent\goal.md --max-turns 5
 ```
 
+**Gemini instead of Claude:** set a Gemini key and pass the provider. The tools, prompt and game side are
+identical; only the model call differs.
+
+```bash
+py -m pip install -r agent\requirements.txt
+set GEMINI_API_KEY=your-key
+py agent\agent.py --goal agent\goal.md --provider gemini --max-turns 5
+```
+
+The default Gemini model is `gemini-2.5-pro`; change it with `--model` or `TIMBERBORN_MODEL` if that name is
+not available to your key. Prompt caching and the reasoning-block handling are Anthropic-only, so Gemini runs
+cost more tokens per turn.
+
 If your key is not scoped to a workspace, also `set ANTHROPIC_WORKSPACE_ID=...`.
 The model defaults to `claude-sonnet-5-5`; change it with `--model` or
 `TIMBERBORN_MODEL`. Edit [goal.md](agent/goal.md) to change what it tries to achieve.

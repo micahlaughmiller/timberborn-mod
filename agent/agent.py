@@ -7,8 +7,8 @@ can follow the decision, not just the outcome.
 
     python agent/agent.py --goal agent/goal.md
 
-Requires ANTHROPIC_API_KEY in the environment and the game running with the mod
-loaded and a save open.
+Requires ANTHROPIC_API_KEY (or GEMINI_API_KEY with --provider gemini) in the environment
+and the game running with the mod loaded and a save open.
 """
 
 import argparse
@@ -20,7 +20,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-import anthropic
+try:
+    import anthropic
+except ImportError:  # only needed when the provider is anthropic
+    anthropic = None
 
 MOD_URL = "http://127.0.0.1:8787"
 DEFAULT_MODEL = os.environ.get("TIMBERBORN_MODEL", "claude-sonnet-5-5")
@@ -750,18 +753,108 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
     return this_turn
 
 
+DEFAULT_GEMINI_MODEL = os.environ.get("TIMBERBORN_MODEL", "gemini-2.5-pro")
+
+
+def plain(value):
+    """Gemini returns every JSON number as a float (102.0); the mod wants whole numbers where they are whole."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, dict) or hasattr(value, "items"):
+        return {k: plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [plain(v) for v in value]
+    return value
+
+
+def gemini_tools(types):
+    declarations = [
+        types.FunctionDeclaration(name=t["name"], description=t["description"], parameters_json_schema=t["input_schema"])
+        for t in TOOLS
+    ]
+    return [types.Tool(function_declarations=declarations)]
+
+
+def play_turn_gemini(client, types, model, system, goal_content, turns, turn_no, verbose):
+    """The same turn as play_turn, through Gemini's function calling."""
+    state = call_mod("/state")
+
+    if not state.get("in_game", False):
+        print(f"[turn {turn_no}] waiting: {state.get('error') or state.get('note') or 'no save loaded'}")
+        return None
+
+    print(f"[turn {turn_no}] cycle {state.get('cycle')} day {state.get('cycle_day')} "
+          f"hazard {'ACTIVE' if state.get('hazard_active') else ('WARNING' if state.get('hazard_approaching') else 'none')}, beavers {state.get('beavers')}, "
+          f"stock {json.dumps({k: v.get('available') for k, v in (state.get('stock') or {}).items() if isinstance(v, dict)})}")
+
+    this_turn = [types.Content(role="user", parts=[types.Part.from_text(
+        text="World snapshot:\n" + json.dumps(state) + "\n\nWhat do you do next?")])]
+    config = types.GenerateContentConfig(
+        system_instruction=system,
+        tools=gemini_tools(types),
+        max_output_tokens=4000,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    for _ in range(MAX_TOOL_ROUNDS):
+        contents = [goal_content] + flatten(turns[-(KEEP_TURNS - 1):]) + this_turn
+        response = client.models.generate_content(model=model, contents=contents, config=config)
+        if not response.candidates or response.candidates[0].content is None:
+            break
+
+        content = response.candidates[0].content
+        this_turn.append(content)
+
+        calls = []
+        for part in content.parts or []:
+            if getattr(part, "thought", False):
+                continue
+            if part.text and part.text.strip() and verbose:
+                print("    " + part.text.strip())
+            if part.function_call:
+                calls.append(part.function_call)
+
+        if not calls:
+            break
+
+        replies = []
+        for call in calls:
+            args = plain(dict(call.args or {}))
+            outcome = run_tool(call.name, args)
+            summary = json.dumps(outcome)
+            print(f"    -> {call.name}({json.dumps(args)}): "
+                  f"{summary if len(summary) < 300 else summary[:300] + '...'}")
+            replies.append(types.Part.from_function_response(name=call.name, response={"result": outcome}))
+        this_turn.append(types.Content(role="user", parts=replies))
+
+    return this_turn
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Drive a Timberborn playthrough with Claude.")
+    parser = argparse.ArgumentParser(description="Drive a Timberborn playthrough with an AI model.")
     parser.add_argument("--goal", default="agent/goal.md", help="File describing the playthrough objective")
     parser.add_argument("--goal-text", default=None, help="The objective as text; used instead of the goal file")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Claude model id")
+    parser.add_argument("--provider", choices=["anthropic", "gemini"], default=None,
+                        help="Which model API to use (default: whichever key is set; anthropic if both)")
+    parser.add_argument("--model", default=None, help="Model id (default depends on the provider)")
     parser.add_argument("--interval", type=float, default=15.0, help="Seconds to wait between turns")
     parser.add_argument("--max-turns", type=int, default=0, help="0 runs until interrupted")
     parser.add_argument("--quiet", action="store_true", help="Hide the model's free-text commentary")
     args = parser.parse_args()
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("ANTHROPIC_API_KEY is not set.")
+    gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    provider = args.provider
+    if provider is None:
+        provider = "anthropic" if os.environ.get("ANTHROPIC_API_KEY") or not gemini_key else "gemini"
+
+    if provider == "anthropic" and not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.exit("ANTHROPIC_API_KEY is not set. For Gemini set GEMINI_API_KEY and pass --provider gemini.")
+    if provider == "anthropic" and anthropic is None:
+        sys.exit("The anthropic package is not installed: py -m pip install -r agent\\requirements.txt")
+    if provider == "gemini" and not gemini_key:
+        sys.exit("GEMINI_API_KEY is not set.")
+
+    model = args.model or (DEFAULT_GEMINI_MODEL if provider == "gemini" else DEFAULT_MODEL)
 
     if args.goal_text:
         goal_text = args.goal_text
@@ -773,21 +866,35 @@ def main():
     if probe.get("error"):
         sys.exit(f"Mod not reachable. Is the game running with the mod loaded?\n{probe['error']}")
 
-    # A key that is not scoped to a workspace must say which workspace to use.
-    headers = {}
-    workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
-    if workspace:
-        headers["anthropic-workspace-id"] = workspace
-    client = anthropic.Anthropic(default_headers=headers or None)
-    goal_message = {
-        "role": "user",
-        # Identical on every call, so it is cached together with the system prompt and tools.
-        "content": [{
-            "type": "text",
-            "text": "Your objective for this playthrough:\n\n" + goal_text + "\n\n" + bootstrap_context(),
-            "cache_control": {"type": "ephemeral"},
-        }],
-    }
+    opening = "Your objective for this playthrough:\n\n" + goal_text + "\n\n" + bootstrap_context()
+
+    if provider == "gemini":
+        try:
+            from google import genai
+            from google.genai import errors as genai_errors
+            from google.genai import types
+        except ImportError:
+            sys.exit("The Gemini SDK is not installed: py -m pip install google-genai")
+        client = genai.Client(api_key=gemini_key)
+        goal_message = types.Content(role="user", parts=[types.Part.from_text(text=opening)])
+        retryable = (genai_errors.APIError, ConnectionError, TimeoutError)
+        run_turn = lambda turns, n: play_turn_gemini(client, types, model, SYSTEM, goal_message, turns, n, not args.quiet)
+    else:
+        # A key that is not scoped to a workspace must say which workspace to use.
+        headers = {}
+        workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+        if workspace:
+            headers["anthropic-workspace-id"] = workspace
+        client = anthropic.Anthropic(default_headers=headers or None)
+        goal_message = {
+            "role": "user",
+            # Identical on every call, so it is cached together with the system prompt and tools.
+            "content": [{"type": "text", "text": opening, "cache_control": {"type": "ephemeral"}}],
+        }
+        retryable = (anthropic.APIStatusError, anthropic.APIConnectionError)
+        run_turn = lambda turns, n: play_turn(client, model, SYSTEM, goal_message, turns, n, not args.quiet)
+
+    print(f"provider {provider}, model {model}")
 
     turns = []
     turn_no = 0
@@ -795,22 +902,20 @@ def main():
         while args.max_turns == 0 or turn_no < args.max_turns:
             turn_no += 1
             try:
-                finished = play_turn(client, args.model, SYSTEM, goal_message, turns, turn_no, not args.quiet)
-            except anthropic.APIStatusError as exc:
+                finished = run_turn(turns, turn_no)
+            except retryable as exc:
+                code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                message = getattr(exc, "message", None) or str(exc)
                 # 400/401/403/404 mean the request itself is wrong (bad key, workspace,
                 # model id). Retrying cannot fix that, so stop and say why.
-                if exc.status_code in (400, 401, 403, 404):
-                    sys.exit(f"API rejected the request ({exc.status_code}): {exc.message}")
-                print(f"[turn {turn_no}] API error {exc.status_code}: {exc.message}; retrying after a pause", file=sys.stderr)
-                time.sleep(20)
-                continue
-            except anthropic.APIConnectionError as exc:
-                print(f"[turn {turn_no}] network error: {exc}; retrying after a pause", file=sys.stderr)
+                if code in (400, 401, 403, 404):
+                    sys.exit(f"API rejected the request ({code}): {message}")
+                print(f"[turn {turn_no}] API error {code}: {message}; retrying after a pause", file=sys.stderr)
                 time.sleep(20)
                 continue
 
             if finished:
-                turns.append(strip_thinking(finished))
+                turns.append(strip_thinking(finished) if provider == "anthropic" else finished)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nstopped.")
