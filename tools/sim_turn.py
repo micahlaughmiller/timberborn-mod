@@ -6,6 +6,7 @@ unless --live is given, so the default changes nothing except priorities and cre
 
     py tools\\sim_turn.py            # report only (builds are dry runs)
     py tools\\sim_turn.py --live     # actually place the buildings and connect them
+    py tools\\sim_turn.py --live --also=Grill,LumberMill   # also try these buildings (names without the faction)
 
 The whole report is also written to sim-out.txt so it can be pasted back in one piece.
 """
@@ -76,7 +77,9 @@ road = (center or {}).get("access_cell") or {}
 near = {"near_x": (center or {}).get("x", 100), "near_y": (center or {}).get("y", 130)}
 
 # ---- opening buildings, in the build order the agent is told to follow
-for base in ["SmallWarehouse", "SmallTank", "Inventor", "Lodge"]:
+EXTRA = [a.split("=", 1)[1] for a in sys.argv if a.startswith("--also=")]
+EXTRA = [name for chunk in EXTRA for name in chunk.split(",") if name]
+for base in ["SmallWarehouse", "SmallTank", "Inventor", "Lodge"] + EXTRA:
     prefab = base + "." + faction
     if any(str(b.get("name", "")) == prefab for b in buildings):
         say("")
