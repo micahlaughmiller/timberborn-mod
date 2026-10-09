@@ -753,7 +753,7 @@ def play_turn(client, model, system, goal_message, turns, turn_no, verbose):
     return this_turn
 
 
-DEFAULT_GEMINI_MODEL = os.environ.get("TIMBERBORN_MODEL", "gemini-2.5-pro")
+DEFAULT_GEMINI_MODEL = os.environ.get("TIMBERBORN_MODEL", "gemini-3.1-pro-preview")
 
 
 def plain(value):
