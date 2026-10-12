@@ -8,7 +8,8 @@ can follow the decision, not just the outcome.
     python agent/agent.py --goal agent/goal.md
 
 Requires ANTHROPIC_API_KEY (or GEMINI_API_KEY with --provider gemini) in the environment
-and the game running with the mod loaded and a save open.
+and the game running with the mod loaded and a save open. With --provider ollama it needs
+no key, only an Ollama server (OLLAMA_URL or --ollama-url).
 """
 
 import argparse
@@ -830,13 +831,146 @@ def play_turn_gemini(client, types, model, system, goal_content, turns, turn_no,
     return this_turn
 
 
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+DEFAULT_OLLAMA_MODEL = os.environ.get("TIMBERBORN_MODEL", "qwen3:8b")
+# Ollama's own default window is small and silently drops the oldest messages, which here would be the
+# opening brief. The system prompt and tools alone are about 8k tokens, and the opening brief (buildings,
+# recipes, needs, a map) adds more, so start roomy. On an 8 GB GPU a window this big spills into system RAM.
+DEFAULT_NUM_CTX = 32768
+
+
+class OllamaError(Exception):
+    """A failed Ollama call, shaped like the Anthropic and Gemini SDK errors so the retry loop treats all three alike."""
+
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def ollama_request(path, payload=None, timeout=600):
+    url = OLLAMA_URL.rstrip("/") + path
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data, method="POST" if data is not None else "GET")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", "replace")
+        try:
+            body = json.loads(body).get("error", body)
+        except (ValueError, AttributeError):
+            pass
+        raise OllamaError(body, exc.code)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise OllamaError(f"no usable reply from Ollama at {url}: {exc}")
+
+
+def check_ollama(model):
+    """Fail at startup, with the reason, rather than on the first turn."""
+    try:
+        names = [m.get("name") for m in ollama_request("/api/tags", timeout=10).get("models", [])]
+    except OllamaError as exc:
+        sys.exit(f"Ollama is not reachable: {exc.message}")
+    if (model if ":" in model else model + ":latest") not in names:
+        sys.exit(f"Model {model} is not on the Ollama server at {OLLAMA_URL}. It has: {', '.join(names) or 'nothing'}.")
+
+
+def ollama_tools():
+    return [
+        {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["input_schema"]}}
+        for t in TOOLS
+    ]
+
+
+def play_turn_ollama(model, system, goal_message, turns, turn_no, verbose, num_ctx, think):
+    """The same turn as play_turn, through Ollama's /api/chat tool calling."""
+    state = call_mod("/state")
+
+    if not state.get("in_game", False):
+        print(f"[turn {turn_no}] waiting: {state.get('error') or state.get('note') or 'no save loaded'}")
+        return None
+
+    print(f"[turn {turn_no}] cycle {state.get('cycle')} day {state.get('cycle_day')} "
+          f"hazard {'ACTIVE' if state.get('hazard_active') else ('WARNING' if state.get('hazard_approaching') else 'none')}, beavers {state.get('beavers')}, "
+          f"stock {json.dumps({k: v.get('available') for k, v in (state.get('stock') or {}).items() if isinstance(v, dict)})}")
+
+    this_turn = [{
+        "role": "user",
+        "content": "World snapshot:\n" + json.dumps(state) + "\n\nWhat do you do next?",
+    }]
+    tools = ollama_tools()
+
+    for _ in range(MAX_TOOL_ROUNDS):
+        messages = [{"role": "system", "content": system}, goal_message] + flatten(turns[-(KEEP_TURNS - 1):]) + this_turn
+        body = {
+            "model": model,
+            "messages": messages,
+            "tools": tools,
+            "stream": False,
+            "keep_alive": "30m",  # stay loaded between turns so the next one does not pay the load time
+            "options": {"num_ctx": num_ctx, "num_predict": 4000},
+        }
+        if think is not None:
+            body["think"] = think
+        reply = ollama_request("/api/chat", body)
+
+        used = (reply.get("prompt_eval_count") or 0) + (reply.get("eval_count") or 0)
+        if used > 0.9 * num_ctx:
+            print(f"    warning: about {used} of {num_ctx} context tokens in use; Ollama will start dropping the "
+                  f"oldest messages. Raise --num-ctx (more GPU memory) or lower KEEP_TURNS.", file=sys.stderr)
+
+        message = reply.get("message") or {}
+        text = message.get("content") or ""
+        calls = message.get("tool_calls") or []
+        # The model's reasoning (message["thinking"]) is left out of history on purpose; it is only noise next turn.
+        assistant = {"role": "assistant", "content": text}
+        if calls:
+            assistant["tool_calls"] = calls
+        this_turn.append(assistant)
+
+        if text.strip() and verbose:
+            print("    " + text.strip())
+        if not calls:
+            if reply.get("done_reason") == "length":
+                print("    warning: the reply hit the token limit before the model acted", file=sys.stderr)
+            break
+
+        for call in calls:
+            function = call.get("function") or {}
+            name = function.get("name", "")
+            args = function.get("arguments") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    args = {}
+            args = plain(args)
+            outcome = run_tool(name, args)
+            summary = json.dumps(outcome)
+            print(f"    -> {name}({json.dumps(args)}): "
+                  f"{summary if len(summary) < 300 else summary[:300] + '...'}")
+            this_turn.append({"role": "tool", "tool_name": name, "content": summary})
+
+    return this_turn
+
+
 def main():
+    global OLLAMA_URL
     parser = argparse.ArgumentParser(description="Drive a Timberborn playthrough with an AI model.")
     parser.add_argument("--goal", default="agent/goal.md", help="File describing the playthrough objective")
     parser.add_argument("--goal-text", default=None, help="The objective as text; used instead of the goal file")
-    parser.add_argument("--provider", choices=["anthropic", "gemini"], default=None,
+    parser.add_argument("--provider", choices=["anthropic", "gemini", "ollama"], default=None,
                         help="Which model API to use (default: whichever key is set; anthropic if both)")
     parser.add_argument("--model", default=None, help="Model id (default depends on the provider)")
+    parser.add_argument("--ollama-url", default=None,
+                        help="Ollama server for --provider ollama (default: OLLAMA_URL, else http://127.0.0.1:11434)")
+    parser.add_argument("--num-ctx", type=int, default=DEFAULT_NUM_CTX,
+                        help="Ollama context window in tokens; larger needs more GPU memory")
+    parser.add_argument("--think", choices=["on", "off", "auto"], default="off",
+                        help="Ollama reasoning mode: off is much faster, on thinks before each action, "
+                             "auto leaves it to the model (use auto for models that cannot think)")
     parser.add_argument("--interval", type=float, default=15.0, help="Seconds to wait between turns")
     parser.add_argument("--max-turns", type=int, default=0, help="0 runs until interrupted")
     parser.add_argument("--quiet", action="store_true", help="Hide the model's free-text commentary")
@@ -854,7 +988,12 @@ def main():
     if provider == "gemini" and not gemini_key:
         sys.exit("GEMINI_API_KEY is not set.")
 
-    model = args.model or (DEFAULT_GEMINI_MODEL if provider == "gemini" else DEFAULT_MODEL)
+    model = args.model or {"gemini": DEFAULT_GEMINI_MODEL, "ollama": DEFAULT_OLLAMA_MODEL}.get(provider, DEFAULT_MODEL)
+
+    if provider == "ollama":
+        if args.ollama_url:
+            OLLAMA_URL = args.ollama_url
+        check_ollama(model)
 
     if args.goal_text:
         goal_text = args.goal_text
@@ -879,6 +1018,11 @@ def main():
         goal_message = types.Content(role="user", parts=[types.Part.from_text(text=opening)])
         retryable = (genai_errors.APIError, ConnectionError, TimeoutError)
         run_turn = lambda turns, n: play_turn_gemini(client, types, model, SYSTEM, goal_message, turns, n, not args.quiet)
+    elif provider == "ollama":
+        goal_message = {"role": "user", "content": opening}
+        think = {"on": True, "off": False, "auto": None}[args.think]
+        retryable = (OllamaError,)
+        run_turn = lambda turns, n: play_turn_ollama(model, SYSTEM, goal_message, turns, n, not args.quiet, args.num_ctx, think)
     else:
         # A key that is not scoped to a workspace must say which workspace to use.
         headers = {}
@@ -894,7 +1038,7 @@ def main():
         retryable = (anthropic.APIStatusError, anthropic.APIConnectionError)
         run_turn = lambda turns, n: play_turn(client, model, SYSTEM, goal_message, turns, n, not args.quiet)
 
-    print(f"provider {provider}, model {model}")
+    print(f"provider {provider}, model {model}" + (f", server {OLLAMA_URL}" if provider == "ollama" else ""))
 
     turns = []
     turn_no = 0

@@ -138,6 +138,27 @@ The default Gemini model is `gemini-3.1-pro-preview`; change it with `--model` o
 not available to your key. Prompt caching and the reasoning-block handling are Anthropic-only, so Gemini runs
 cost more tokens per turn.
 
+**Ollama (an open model on your own server, no API key or credits):** the agent talks to any Ollama server it can
+reach over the network. The tools, prompt and game side are identical; only the model call differs. No extra
+packages are needed.
+
+```bash
+py agent\agent.py --goal agent\goal.md --provider ollama --ollama-url http://192.168.68.119:11434 --max-turns 5
+```
+
+Set `OLLAMA_URL` once instead of passing `--ollama-url` every time. The default model is `qwen3:8b`; it must already
+be pulled on the server, and the agent checks that before the first turn. This computer must be on the server's
+local network. Flags that only apply to Ollama:
+
+- `--think off` (default) skips the model's reasoning for speed; `--think on` thinks before each action, which is
+  several times slower; `--think auto` leaves it to the model (use it for models that cannot think).
+- `--num-ctx` is the context window (default 32768). The system prompt and tools are about 8k tokens before the
+  opening brief, so a small window silently drops the brief. The agent warns on stderr when it nears the limit. A big
+  window needs more GPU memory; on an 8 GB card, setting `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0`
+  on the server (then restarting Ollama) halves the memory the window uses.
+
+An 8B model is much weaker than Claude at long multi-step planning. Expect it to need shorter goals and more turns.
+
 If your key is not scoped to a workspace, also `set ANTHROPIC_WORKSPACE_ID=...`.
 The model defaults to `claude-sonnet-5-5`; change it with `--model` or
 `TIMBERBORN_MODEL`. Edit [goal.md](agent/goal.md) to change what it tries to achieve.
